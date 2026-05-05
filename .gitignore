@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+
+# Node
+node_modules/
+dist/
+.eslintcache
+
+# AI Models (large files)
+ai_model/models/
+*.onnx
+*.pth
+
+# OS
+.DS_Store
+Thumbs.db
