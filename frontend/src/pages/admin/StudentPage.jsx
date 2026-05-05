@@ -1,186 +1,116 @@
-import { useEffect, useState } from "react";
-import axios from "axios";
+import React, { useState, useEffect } from 'react';
+import { Plus, Save, Users } from 'lucide-react';
+import toast from 'react-hot-toast';
+import api from '../../api';
+import { Button, Card, Skeleton, Modal, EmptyState } from '../../components/UI';
 
-const API = "http://127.0.0.1:8000";
+const StudentPage = () => {
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [formData, setFormData] = useState({ name: '', email: '', password: '', class_id: '', roll_no: '' });
 
-export default function StudentPage() {
-  const [form, setForm] = useState({
-    name: "",
-    email: "",
-    roll_no: "",
-    registration_no: "",
-    department_id: "",
-    class_id: "",
-    section: "",
-    batch: "",
-    phone: "",
-    parent_phone: "",
-  });
-
-  const [departments, setDepartments] = useState([]);
-  const [classes, setClasses] = useState([]);
-  const [students, setStudents] = useState([]);
-  const [search, setSearch] = useState("");
-
-  const token = localStorage.getItem("token");
-
-  const fetchDepartments = async () => {
-    const res = await axios.get(`${API}/admin/departments`);
-    setDepartments(res.data || []);
-  };
-
-  const fetchClasses = async () => {
-    const res = await axios.get(`${API}/admin/classes`);
-    setClasses(res.data || []);
-  };
-
-  const fetchStudents = async () => {
+  const fetchData = async () => {
+    setLoading(true);
     try {
-      const res = await axios.get(`${API}/admin/students`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setStudents(res.data || []);
-    } catch {
-      console.log("Failed to load students");
-    }
-  };
-
-  useEffect(() => {
-    Promise.resolve().then(() => {
-      fetchDepartments();
-      fetchClasses();
-      fetchStudents();
-    });
-  }, []);
-
-  const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
-  };
-
-  const addStudent = async () => {
-    if (!form.name || !form.email || !form.roll_no || !form.class_id) {
-      alert("Name, Email, Roll No and Class are required");
-      return;
-    }
-
-    try {
-      await axios.post(
-        `${API}/admin/students`,
-        {
-          ...form,
-          class_id: Number(form.class_id),
-          department_id: Number(form.department_id),
-          password: "123456",
-        },
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
-
-      alert("Student added successfully. Default password: 123456");
-
-      setForm({
-        name: "",
-        email: "",
-        roll_no: "",
-        registration_no: "",
-        department_id: "",
-        class_id: "",
-        section: "",
-        batch: "",
-        phone: "",
-        parent_phone: "",
-      });
-
-      fetchStudents();
+      const res = await api.get('/admin/students');
+      setData(res.data);
     } catch (err) {
-      alert(err.response?.data?.detail || "Error adding student");
+      toast.error('Failed to load students');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const filteredStudents = students.filter((s) =>
-    `${s.name || ""} ${s.email || ""} ${s.roll_no || ""}`
-      .toLowerCase()
-      .includes(search.toLowerCase())
-  );
+  useEffect(() => { fetchData(); }, []);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const tId = toast.loading('Saving...');
+    try {
+      await api.post('/admin/students', { ...formData, class_id: Number(formData.class_id) });
+      toast.success('Student added successfully', { id: tId });
+      setIsModalOpen(false);
+      setFormData({ name: '', email: '', password: '', class_id: '', roll_no: '' });
+      fetchData();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Failed to add', { id: tId });
+    }
+  };
 
   return (
-    <div style={{ padding: 20 }}>
-      <h2>Student Management</h2>
-
-      <div style={{ background: "white", padding: 20, borderRadius: 12 }}>
-        <h3>Add New Student</h3>
-
-        <input name="name" placeholder="Student Name *" value={form.name} onChange={handleChange} />
-        <br /><br />
-
-        <input name="email" placeholder="Email *" value={form.email} onChange={handleChange} />
-        <br /><br />
-
-        <input name="roll_no" placeholder="Roll No *" value={form.roll_no} onChange={handleChange} />
-        <br /><br />
-
-        <input name="registration_no" placeholder="Registration No" value={form.registration_no} onChange={handleChange} />
-        <br /><br />
-
-        <select name="department_id" value={form.department_id} onChange={handleChange}>
-          <option value="">Select Department</option>
-          {departments.map((d) => (
-            <option key={d.id} value={d.id}>{d.name}</option>
-          ))}
-        </select>
-        <br /><br />
-
-        <select name="class_id" value={form.class_id} onChange={handleChange}>
-          <option value="">Select Class *</option>
-          {classes.map((c) => (
-            <option key={c.id} value={c.id}>{c.name}</option>
-          ))}
-        </select>
-        <br /><br />
-
-        <input name="section" placeholder="Section e.g. A" value={form.section} onChange={handleChange} />
-        <br /><br />
-
-        <input name="batch" placeholder="Batch e.g. 2024-2026" value={form.batch} onChange={handleChange} />
-        <br /><br />
-
-        <input name="phone" placeholder="Student Phone" value={form.phone} onChange={handleChange} />
-        <br /><br />
-
-        <input name="parent_phone" placeholder="Parent Phone" value={form.parent_phone} onChange={handleChange} />
-        <br /><br />
-
-        <p>Default Password: <b>123456</b></p>
-
-        <button onClick={addStudent}>Add Student</button>
+    <div className="space-y-6">
+      <div className="flex justify-between items-end">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Students</h1>
+          <p className="text-gray-500 mt-1">Manage student enrollment.</p>
+        </div>
+        <Button onClick={() => setIsModalOpen(true)}><Plus className="w-4 h-4 mr-2" /> Add Student</Button>
       </div>
 
-      <br />
-
-      <div style={{ background: "white", padding: 20, borderRadius: 12 }}>
-        <h3>Student List</h3>
-
-        <input
-          placeholder="Search by name, email, roll no"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-
-        <br /><br />
-
-        {filteredStudents.length === 0 ? (
-          <p>No students found</p>
+      <Card className="p-0 overflow-hidden">
+        {loading ? (
+          <div className="p-6 space-y-4">{[1, 2, 3].map(i => <Skeleton key={i} className="h-12 w-full" />)}</div>
+        ) : data.length === 0 ? (
+          <EmptyState icon={Users} title="No Students Found" message="There are no students registered yet." />
         ) : (
-          filteredStudents.map((s, i) => (
-            <div key={i} style={{ padding: 10, borderBottom: "1px solid #ddd" }}>
-              <b>{s.name}</b> | {s.roll_no} | {s.email}
-              <br />
-              Face Status: {s.face_enrolled ? "Uploaded ✅" : "Not Uploaded ❌"}
-            </div>
-          ))
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead className="bg-gray-50 text-gray-500 text-sm border-b border-gray-100">
+                <tr>
+                  <th className="px-6 py-3 font-medium">Name</th>
+                  <th className="px-6 py-3 font-medium">Email</th>
+                  <th className="px-6 py-3 font-medium">Roll No</th>
+                  <th className="px-6 py-3 font-medium">Class ID</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {data.map((item, i) => (
+                  <tr key={i} className="hover:bg-gray-50/50">
+                    <td className="px-6 py-4 text-sm text-gray-900 font-medium">{item.name || `User ID: ${item.user_id}`}</td>
+                    <td className="px-6 py-4 text-sm text-gray-900">{item.email || 'N/A'}</td>
+                    <td className="px-6 py-4 text-sm text-gray-900">{item.roll_no}</td>
+                    <td className="px-6 py-4 text-sm text-gray-900">{item.class_id}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
-      </div>
+      </Card>
+
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Add New Student">
+        <form onSubmit={handleSubmit}>
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+            <input name="name" type="text" required value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1a2b6d] outline-none" placeholder="e.g. John Doe" />
+          </div>
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+            <input name="email" type="email" required value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1a2b6d] outline-none" placeholder="john@student.edu" />
+          </div>
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+            <input name="password" type="password" required value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1a2b6d] outline-none" placeholder="••••••••" />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Class ID</label>
+              <input name="class_id" type="number" required value={formData.class_id} onChange={(e) => setFormData({ ...formData, class_id: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1a2b6d] outline-none" />
+            </div>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Roll Number</label>
+              <input name="roll_no" type="text" required value={formData.roll_no} onChange={(e) => setFormData({ ...formData, roll_no: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1a2b6d] outline-none" placeholder="S001" />
+            </div>
+          </div>
+          <div className="mt-6 flex justify-end gap-3">
+            <Button variant="ghost" type="button" onClick={() => setIsModalOpen(false)}>Cancel</Button>
+            <Button type="submit"><Save className="w-4 h-4 mr-2" /> Save</Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
-}
+};
+
+export default StudentPage;
