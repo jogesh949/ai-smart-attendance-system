@@ -97,7 +97,7 @@ def start_session(
     }
 
 @router.post("/end/{session_id}")
-def end_session(session_id: int, db: Session = Depends(get_db)):
+def end_session(session_id: int, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     session = db.query(AttendanceSession).filter(AttendanceSession.id == session_id).first()
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -105,6 +105,28 @@ def end_session(session_id: int, db: Session = Depends(get_db)):
     session.status = "completed"
     session.end_time = datetime.utcnow()
     db.commit()
+
+    try:
+        subject = db.query(Subject).filter(Subject.id == session.subject_id).first()
+        subject_name = subject.name if subject else "Unknown Subject"
+        date_str = session.start_time.strftime("%Y-%m-%d %H:%M")
+        
+        absent_records = db.query(AttendanceRecord, User.name, User.email).join(
+            Student, AttendanceRecord.student_id == Student.id
+        ).join(
+            User, Student.user_id == User.id
+        ).filter(
+            AttendanceRecord.session_id == session_id,
+            AttendanceRecord.status == "Absent"
+        ).all()
+
+        absent_students = [{"name": r[1], "email": r[2]} for r in absent_records if r[2]]
+        
+        if absent_students:
+            background_tasks.add_task(send_bulk_absence_emails, absent_students, subject_name, date_str)
+    except Exception as e:
+        print(f"Failed to queue absence emails: {e}")
+
     return {"message": "Session ended"}
 
 @router.get("/session/{session_id}")

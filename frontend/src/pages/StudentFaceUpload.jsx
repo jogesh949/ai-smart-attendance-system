@@ -56,6 +56,48 @@ const StudentFaceUpload = () => {
 
   const isEnrollmentComplete = uploadedPhotos.length >= MIN_PHOTOS_FOR_RELIABILITY;
 
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const [isWebcamActive, setIsWebcamActive] = useState(false);
+
+  const startWebcam = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+      setIsWebcamActive(true);
+    } catch {
+      toast.error("Could not access webcam. Please check permissions.");
+    }
+  };
+
+  const stopWebcam = useCallback(() => {
+    if (videoRef.current && videoRef.current.srcObject) {
+      const tracks = videoRef.current.srcObject.getTracks();
+      tracks.forEach(track => track.stop());
+      videoRef.current.srcObject = null;
+    }
+    setIsWebcamActive(false);
+  }, []);
+
+  useEffect(() => {
+    return () => stopWebcam();
+  }, [stopWebcam]);
+
+  const capturePhoto = () => {
+    if (videoRef.current && canvasRef.current) {
+      const context = canvasRef.current.getContext('2d');
+      context.drawImage(videoRef.current, 0, 0, 640, 480);
+      canvasRef.current.toBlob((blob) => {
+        if (blob) {
+          const file = new File([blob], `webcam-${Date.now()}.jpg`, { type: 'image/jpeg' });
+          onDrop([file]);
+        }
+      }, 'image/jpeg', 0.9);
+    }
+  };
+
   return (
     <PageTransition>
       <div className="space-y-8">
@@ -75,19 +117,46 @@ const StudentFaceUpload = () => {
             Please upload {MAX_PHOTOS} clear photos of your face from different angles. This helps the AI recognize you accurately.
           </p>
 
-          <div
-            {...getRootProps()}
-            className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all
-              ${isDragActive ? 'border-cyan-DEFAULT bg-cyan-DEFAULT/10' : 'border-white/20 hover:border-cyan-DEFAULT/50 bg-white/5'}`}
-          >
-            <input {...getInputProps()} />
-            <UploadCloud size={48} className="mx-auto text-cyan-DEFAULT mb-4" />
-            {isDragActive ? (
-              <p className="text-white font-orbitron font-bold">Drop the files here...</p>
-            ) : (
-              <p className="text-text-muted">Drag 'n' drop some files here, or click to select files</p>
-            )}
-            <p className="text-[10px] text-text-muted mt-2">JPG, PNG up to 5MB each</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <div
+              {...getRootProps()}
+              className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all flex flex-col items-center justify-center
+                ${isDragActive ? 'border-cyan-DEFAULT bg-cyan-DEFAULT/10' : 'border-white/20 hover:border-cyan-DEFAULT/50 bg-white/5'}`}
+            >
+              <input {...getInputProps()} />
+              <UploadCloud size={48} className="text-cyan-DEFAULT mb-4" />
+              {isDragActive ? (
+                <p className="text-white font-orbitron font-bold">Drop the files here...</p>
+              ) : (
+                <p className="text-white font-orbitron font-bold">Upload Files</p>
+              )}
+              <p className="text-text-muted text-xs mt-2">Drag & drop or click</p>
+            </div>
+
+            <div className="border-2 border-white/20 rounded-xl p-4 flex flex-col items-center justify-center bg-white/5 relative overflow-hidden">
+              {isWebcamActive ? (
+                <>
+                  <video ref={videoRef} autoPlay playsInline className="w-full h-32 object-cover rounded-lg mb-4" />
+                  <canvas ref={canvasRef} width="640" height="480" className="hidden" />
+                  <div className="flex gap-4">
+                    <button onClick={capturePhoto} className="bg-cyan-DEFAULT text-black p-3 rounded-full hover:scale-110 transition-transform shadow-[0_0_15px_rgba(0,245,255,0.4)]">
+                      <Camera size={20} />
+                    </button>
+                    <button onClick={stopWebcam} className="bg-danger/20 border border-danger/50 text-danger p-3 rounded-full hover:bg-danger hover:text-white transition-all">
+                      <StopCircle size={20} />
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <Video size={48} className="text-violet mb-4" />
+                  <p className="text-white font-orbitron font-bold">Use Webcam</p>
+                  <button onClick={startWebcam} className="mt-4 bg-white/10 hover:bg-white/20 text-white px-6 py-2 rounded-lg text-xs font-orbitron tracking-widest transition-colors border border-white/20">
+                    Start Camera
+                  </button>
+                </>
+              )}
+            </div>
           </div>
 
           <div className="mt-8">
@@ -138,6 +207,9 @@ const StudentFaceUpload = () => {
       </div>
     </PageTransition>
   );
+};
+
+export default StudentFaceUpload; );
 };
 
 export default StudentFaceUpload;

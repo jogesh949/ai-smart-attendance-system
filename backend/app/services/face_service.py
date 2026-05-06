@@ -32,16 +32,22 @@ def get_faces_with_details(image_bytes):
         if img is None:
             return []
 
-        faces = face_app.get(img)
+        # Resize image for 2x faster processing
+        height, width = img.shape[:2]
+        small_img = cv2.resize(img, (width // 2, height // 2))
+
+        faces = face_app.get(small_img)
 
         results = []
         for face in faces:
+            # Scale bbox back to original size
+            scaled_bbox = face.bbox * 2
             # Normalize embedding for better comparison
             feat = face.embedding
             norm_feat = feat / np.linalg.norm(feat)
             
             results.append({
-                "bbox": face.bbox.tolist(), # [x1, y1, x2, y2]
+                "bbox": scaled_bbox.tolist(), # [x1, y1, x2, y2]
                 "det_score": float(face.det_score),
                 "embedding": norm_feat.tolist()
             })
