@@ -598,23 +598,28 @@ def add_timetable(data: TimetableRequest, db: Session = Depends(get_db), current
 
 @router.get("/timetables")
 def get_timetables(db: Session = Depends(get_db)):
-    results = db.query(Timetable).options(
-        joinedload(Timetable.class_name),
-        joinedload(Timetable.subject),
-        joinedload(Timetable.teacher),
-        joinedload(Timetable.classroom)
-    ).all()
+    results = db.query(
+        Timetable,
+        Class.name.label("class_name"),
+        Subject.name.label("subject_name"),
+        User.name.label("teacher_name"),
+        Classroom.room_name.label("classroom_name")
+    ).outerjoin(Class, Timetable.class_id == Class.id)\
+     .outerjoin(Subject, Timetable.subject_id == Subject.id)\
+     .outerjoin(Teacher, Timetable.teacher_id == Teacher.id)\
+     .outerjoin(User, Teacher.user_id == User.id)\
+     .outerjoin(Classroom, Timetable.classroom_id == Classroom.id).all()
     
     return [{
-        "id": t.id,
-        "day": t.day,
-        "start_time": t.start_time.strftime("%H:%M"),
-        "end_time": t.end_time.strftime("%H:%M"),
-        "class_name": t.class_name.name if t.class_name else "N/A",
-        "subject_name": t.subject.name if t.subject else "N/A",
-        "teacher_name": db.query(User).filter(User.id == t.teacher.user_id).first().name if t.teacher else "N/A",
-        "classroom_name": t.classroom.room_name if t.classroom else "N/A"
-    } for t in results]
+        "id": r[0].id,
+        "day": r[0].day,
+        "start_time": r[0].start_time.strftime("%H:%M"),
+        "end_time": r[0].end_time.strftime("%H:%M"),
+        "class_name": r[1] or "N/A",
+        "subject_name": r[2] or "N/A",
+        "teacher_name": r[3] or "N/A",
+        "classroom_name": r[4] or "N/A"
+    } for r in results]
 
 @router.delete("/timetables/{id}")
 def delete_timetable(id: int, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
