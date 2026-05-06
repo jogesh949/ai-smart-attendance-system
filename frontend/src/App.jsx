@@ -21,6 +21,7 @@ import ClassroomPage from './pages/admin/ClassroomPage';
 import TimetablePage from './pages/admin/TimetablePage';
 import CameraMappingPage from './pages/admin/CameraMappingPage';
 import ReportsPage from './pages/admin/ReportsPage';
+import Settings from './pages/Settings';
 
 // Teacher Pages
 import TeacherDashboard from './pages/TeacherDashboard';

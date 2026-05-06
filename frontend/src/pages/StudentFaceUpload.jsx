@@ -1,5 +1,5 @@
-import { useState, useCallback } from 'react';
-import { UploadCloud, Camera, CheckCircle, XCircle, Info } from 'lucide-react';
+import { useState, useCallback, useRef, useEffect } from 'react';
+import { UploadCloud, Camera, CheckCircle, XCircle, Info, Video, StopCircle } from 'lucide-react';
 import { useDropzone } from 'react-dropzone';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
@@ -207,9 +207,6 @@ const StudentFaceUpload = () => {
       </div>
     </PageTransition>
   );
-};
-
-export default StudentFaceUpload; );
 };
 
 export default StudentFaceUpload;

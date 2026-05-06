@@ -31,16 +31,19 @@ const sidebarItems = {
     { name: 'Classrooms', icon: Building2, path: '/admin/classrooms' },
     { name: 'Timetable', icon: Calendar, path: '/admin/timetable' }, // Renamed from Chrono Mapping
     { name: 'Cameras', icon: Monitor, path: '/admin/cameras' }, // Renamed from Surveillance Matrix
-    { name: 'Reports', icon: BarChart3, path: '/admin/reports' }, // Renamed from Attendance Intelligence
-  ],
-  teacher: [
+    { name: 'Reports', icon: BarChart3, path: '/admin/reports' },
+    { name: 'Settings', icon: Settings, path: '/settings' },
+    ],
+    teacher: [
     { name: 'Dashboard', icon: Monitor, path: '/teacher' },
-    { name: 'Session History', icon: Calendar, path: '/teacher/history' }, // Assuming a history page
-  ],
-  student: [
+    { name: 'Session History', icon: Calendar, path: '/teacher/history' },
+    { name: 'Settings', icon: Settings, path: '/settings' },
+    ],
+    student: [
     { name: 'Dashboard', icon: LayoutDashboard, path: '/student' },
     { name: 'Face Enrollment', icon: UserSquare, path: '/student/enroll' },
-  ],
+    { name: 'Settings', icon: Settings, path: '/settings' },
+    ],
 };
 
 const Sidebar = () => {
@@ -168,10 +171,6 @@ const Sidebar = () => {
         )}
       </AnimatePresence>
     </>
-  );
-};
-
-export default Sidebar;/>
   );
 };
 
