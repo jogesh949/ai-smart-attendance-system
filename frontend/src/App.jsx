@@ -122,6 +122,12 @@ const AppContent = () => {
                   </ProtectedRoute>
                 } />
                 
+                <Route path="/settings" element={
+                  <ProtectedRoute>
+                    <Settings />
+                  </ProtectedRoute>
+                } />
+                
                 <Route path="/teacher" element={
                   <ProtectedRoute role="teacher">
                     <TeacherDashboard />

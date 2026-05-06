@@ -135,6 +135,10 @@ def get_current_user(
         raise HTTPException(status_code=401, detail="Invalid token")
 
 
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
 @router.get("/me")
 def get_me(current_user: User = Depends(get_current_user)):
     return {
@@ -143,3 +147,13 @@ def get_me(current_user: User = Depends(get_current_user)):
         "email": current_user.email,
         "role": current_user.role
     }
+
+@router.put("/change-password")
+def change_password(data: ChangePasswordRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if not verify_password(data.current_password, current_user.password):
+        raise HTTPException(status_code=400, detail="Incorrect current password")
+    
+    current_user.password = hash_password(data.new_password)
+    db.commit()
+    
+    return {"message": "Password updated successfully"}

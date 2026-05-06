@@ -16,6 +16,7 @@ import {
   FlaskConical,
   Building2,
   BarChart3,
+  Settings,
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 
@@ -167,6 +168,10 @@ const Sidebar = () => {
         )}
       </AnimatePresence>
     </>
+  );
+};
+
+export default Sidebar;/>
   );
 };
 
