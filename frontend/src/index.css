@@ -1,6 +1,8 @@
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-@theme {
+:root {
   --font-orbitron: "Orbitron", sans-serif;
   --font-dm: "DM Sans", sans-serif;
   --font-mono: "JetBrains Mono", monospace;
@@ -13,26 +15,23 @@
   --color-danger: #EF4444;
   --color-text-primary: #F0F9FF;
   --color-text-muted: #64748B;
-  
-  --animate-pulse-slow: pulse 3s ease-in-out infinite;
-  --animate-glow: glow 2s ease-in-out infinite alternate;
-  --animate-float: float 6s ease-in-out infinite;
-  
-  @keyframes glow {
-    from { box-shadow: 0 0 5px #00F5FF; }
-    to { box-shadow: 0 0 30px #00F5FF, 0 0 60px #00F5FF; }
-  }
-  @keyframes float {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-10px); }
-  }
+}
+
+@keyframes glow {
+  from { box-shadow: 0 0 5px #00F5FF; }
+  to { box-shadow: 0 0 30px #00F5FF, 0 0 60px #00F5FF; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
 }
 
 body {
   @apply bg-cosmic text-text-primary font-dm antialiased;
   /* Hide scrollbars for cleaner futuristic look if preferred */
   scrollbar-width: thin;
-  scrollbar-color: var(--color-cyan-DEFAULT) var(--color-cosmic);
+  scrollbar-color: #00F5FF #020817;
 }
 
 /* Custom Scrollbar Styles */
@@ -41,11 +40,11 @@ body {
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: var(--color-cosmic);
+  background: #020817;
 }
+
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background-color: var(--color-violet-DEFAULT);
+  background-color: #7C3AED;
   border-radius: 20px;
-  border: 2px solid var(--color-cosmic);
-}
+  border: 2px solid #020817;
 }

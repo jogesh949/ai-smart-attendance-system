@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException
+from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -21,7 +21,9 @@ from app.models.camera import Camera
 from app.models.timetable import Timetable
 from app.models.teacher import Teacher
 from app.models.class_model import Class
+from app.models.subject import Subject
 from app.services.face_service import get_face_embedding, compare_faces, get_faces_with_details, parse_embedding
+from app.services.email_service import send_bulk_absence_emails
 from app.routes import auth
 
 router = APIRouter(prefix="/attendance", tags=["Attendance"])
