@@ -2,8 +2,8 @@ import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AnimatePresence } from 'framer-motion';
 
-import { AuthProvider } from './hooks/useAuth'; // Removed duplicate useAuth import
-import Login from './pages/Login';
+import { AuthProvider } from './hooks/useAuth'; 
+import Login from './pages/login';
 import Sidebar from './components/Sidebar';
 import TopBar from './components/TopBar';
 import NeuralBackground from './components/NeuralBackground';

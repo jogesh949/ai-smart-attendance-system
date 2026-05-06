@@ -28,11 +28,12 @@
   }
 }
 
-body {
-  @apply bg-cosmic text-text-primary font-dm antialiased;
-  /* Hide scrollbars for cleaner futuristic look if preferred */
-  scrollbar-width: thin;
-  scrollbar-color: #00F5FF #020817;
+@layer base {
+  body {
+    @apply bg-cosmic text-text-primary font-dm antialiased;
+    scrollbar-width: thin;
+    scrollbar-color: #00F5FF #020817;
+  }
 }
 
 /* Custom Scrollbar Styles */
