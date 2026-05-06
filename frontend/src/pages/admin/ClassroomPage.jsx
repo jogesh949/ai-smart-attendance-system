@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Plus, Search, Trash2, Save, Building2 } from 'lucide-react';
+import { Plus, Search, Save, Building2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../api';
 import GlassCard from '../../components/GlassCard';
@@ -31,7 +31,10 @@ const ClassroomPage = () => {
   }, []);
 
   useEffect(() => {
-    fetchData();
+    const timer = setTimeout(() => {
+      fetchData();
+    }, 0);
+    return () => clearTimeout(timer);
   }, [fetchData]);
 
   const filteredData = useMemo(() => {
@@ -59,7 +62,7 @@ const ClassroomPage = () => {
       setIsDrawerOpen(false);
       setFormData({ id: null, room_name: '', location: '' });
       fetchData();
-    } catch (err) {
+    } catch {
       // Error handled by api.js
     }
   };
@@ -74,7 +77,7 @@ const ClassroomPage = () => {
       await api.delete(`/admin/classrooms/${roomToDelete.id}`);
       toast.success('Classroom decommissioned successfully.');
       fetchData();
-    } catch (err) {
+    } catch {
       // Error handled by api.js
     }
   };

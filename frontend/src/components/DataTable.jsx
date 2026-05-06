@@ -1,4 +1,3 @@
-import React from 'react';
 import { motion } from 'framer-motion';
 import { Edit, Trash2, Eye } from 'lucide-react';
 import AISpinner from './AISpinner';

@@ -1,10 +1,9 @@
-import React from 'react';
 import { CheckCircle, XCircle, HelpCircle } from 'lucide-react';
 
 const StatusBadge = ({ variant, className = '' }) => {
-  let colorClass = '';
-  let icon = null;
-  let text = '';
+  let colorClass;
+  let icon;
+  let text;
 
   switch (variant) {
     case 'present':

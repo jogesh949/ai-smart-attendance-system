@@ -29,7 +29,7 @@ const Login = () => {
         toast.error("Invalid credentials or role. Please try again.");
         setTimeout(() => setErrorShake(false), 1000); // Reset shake animation
       }
-    } catch (err) {
+    } catch {
       setErrorShake(true);
       toast.error("An unexpected error occurred. Please try again.");
     } finally {

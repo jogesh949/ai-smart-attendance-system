@@ -1,5 +1,3 @@
-import React from 'react';
-
 const HUDFrame = ({ children, active = false, className = '' }) => {
   const borderColor = active ? 'border-cyan-DEFAULT' : 'border-white/10';
   const pulseClass = active ? 'animate-glow' : '';

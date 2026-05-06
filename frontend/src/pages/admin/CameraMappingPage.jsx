@@ -1,13 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { 
-  Camera, Plus, Trash2, Play, 
-  XCircle, Video, 
+  Plus, Trash2, Play, 
+  Video, 
   RefreshCw, Monitor,
-  ShieldCheck,
   Settings,
   Activity,
   Save,
-  ChevronRight,
   Info
 } from 'lucide-react';
 import api from '../../api';
@@ -42,7 +40,7 @@ const CameraMappingPage = () => {
     notes: ''
   });
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       const [camRes, roomRes] = await Promise.all([
@@ -51,16 +49,19 @@ const CameraMappingPage = () => {
       ]);
       setCameras(camRes.data);
       setClassrooms(roomRes.data);
-    } catch (err) {
+    } catch {
       toast.error('Failed to fetch surveillance data');
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    const timer = setTimeout(() => {
+      fetchData();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [fetchData]);
 
   const handleAddCamera = async (e) => {
     e.preventDefault();
@@ -81,7 +82,7 @@ const CameraMappingPage = () => {
         is_primary: false,
         notes: ''
       });
-    } catch (err) {
+    } catch {
       // Handled by api.js
     }
   };
@@ -96,7 +97,7 @@ const CameraMappingPage = () => {
       await api.delete(`/admin/cameras/${cameraToDelete.id}`);
       toast.success('Camera mapping deleted.');
       fetchData();
-    } catch (err) {
+    } catch {
       // Handled by api.js
     }
   };
@@ -111,7 +112,7 @@ const CameraMappingPage = () => {
       } else {
         toast.error(`Offline: ${res.data.error}`);
       }
-    } catch (err) {
+    } catch {
       toast.error('Signal lost');
     } finally {
       setTestingId(null);

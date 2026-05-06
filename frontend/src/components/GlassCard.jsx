@@ -1,4 +1,3 @@
-import React from 'react';
 import { motion } from 'framer-motion';
 import { Tilt } from 'react-tilt'; // Using react-tilt for 3D effects
 

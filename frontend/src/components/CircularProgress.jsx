@@ -1,8 +1,7 @@
-import React from 'react';
 import { CircularProgressbar, buildStyles } from 'react-circular-progressbar';
 import 'react-circular-progressbar/dist/styles.css';
 
-const CircularProgress = ({ value, label, color = '#00F5FF', className = '' }) => {
+const CircularProgress = ({ value, color = '#00F5FF', className = '' }) => {
   return (
     <div className={`w-32 h-32 ${className}`}>
       <CircularProgressbar

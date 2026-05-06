@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Plus, Search, Trash2, Save, School, Layers } from 'lucide-react';
+import { Plus, Search, Save, School, Layers } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../api';
 import GlassCard from '../../components/GlassCard';
@@ -7,7 +7,6 @@ import DataTable from '../../components/DataTable';
 import PageTransition from '../../components/PageTransition';
 import Drawer from '../../components/Drawer';
 import ConfirmModal from '../../components/ConfirmModal';
-import { motion, AnimatePresence } from 'framer-motion';
 
 const ClassPage = () => {
   const [data, setData] = useState([]);
@@ -37,7 +36,10 @@ const ClassPage = () => {
   }, []);
 
   useEffect(() => {
-    fetchData();
+    const timer = setTimeout(() => {
+      fetchData();
+    }, 0);
+    return () => clearTimeout(timer);
   }, [fetchData]);
 
   const filteredData = useMemo(() => {
@@ -67,7 +69,7 @@ const ClassPage = () => {
       setIsDrawerOpen(false);
       setFormData({ id: null, name: '', department_id: '' });
       fetchData();
-    } catch (err) {
+    } catch {
       // Error handled by api.js
     }
   };
@@ -82,7 +84,7 @@ const ClassPage = () => {
       await api.delete(`/admin/classes/${classToDelete.id}`);
       toast.success('Class dissolved successfully.');
       fetchData();
-    } catch (err) {
+    } catch {
       // Error handled by api.js
     }
   };

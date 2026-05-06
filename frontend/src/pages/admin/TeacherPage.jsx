@@ -1,8 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { 
-  Plus, 
   Users, 
-  Trash2, 
   UserPlus, 
   Mail, 
   Lock, 
@@ -12,8 +10,7 @@ import {
   Save, 
   Search, 
   GraduationCap, 
-  BookOpen, // Used for departments
-  Activity
+  BookOpen
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import toast from 'react-hot-toast';
@@ -53,7 +50,10 @@ const TeacherPage = () => {
   }, []);
 
   useEffect(() => {
-    fetchData();
+    const timer = setTimeout(() => {
+      fetchData();
+    }, 0);
+    return () => clearTimeout(timer);
   }, [fetchData]);
 
   const filteredData = data.filter(teacher => 
@@ -85,7 +85,7 @@ const TeacherPage = () => {
       setFormData({ name: '', email: '', password: '', department_ids: [] });
       setStep(1);
       fetchData();
-    } catch (err) {
+    } catch {
       // Error handled by api.js
     }
   };
@@ -101,7 +101,7 @@ const TeacherPage = () => {
       toast.success('Teacher record deleted successfully.');
       setIsDeleteModalOpen(false);
       fetchData();
-    } catch (err) {
+    } catch {
       // Error handled by api.js
     }
   };

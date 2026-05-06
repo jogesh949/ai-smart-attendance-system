@@ -48,7 +48,10 @@ const TimetablePage = () => {
   }, []);
 
   useEffect(() => {
-    fetchData();
+    const timer = setTimeout(() => {
+      fetchData();
+    }, 0);
+    return () => clearTimeout(timer);
   }, [fetchData]);
 
   const handleSubmit = async (e) => {
@@ -64,7 +67,7 @@ const TimetablePage = () => {
       toast.success('✅ Schedule entry preserved.');
       setIsDrawerOpen(false);
       fetchData();
-    } catch (err) {
+    } catch {
       // Handled by api.js
     }
   };

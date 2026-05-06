@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Save, Layers, Trash2, Search, ShieldCheck } from 'lucide-react';
+import { Plus, Save, Layers, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../api';
 import GlassCard from '../../components/GlassCard';
@@ -31,7 +31,10 @@ const DepartmentPage = () => {
   }, []);
 
   useEffect(() => {
-    fetchData();
+    const timer = setTimeout(() => {
+      fetchData();
+    }, 0);
+    return () => clearTimeout(timer);
   }, [fetchData]);
 
   const filteredData = data.filter(d => 
@@ -46,7 +49,7 @@ const DepartmentPage = () => {
       setIsDrawerOpen(false);
       setFormData({ name: '' });
       fetchData();
-    } catch (err) {
+    } catch {
       // Handled by api.js
     }
   };
@@ -61,7 +64,7 @@ const DepartmentPage = () => {
       await api.delete(`/admin/departments/${deptToDelete.id}`);
       toast.success('Department dissolved successfully.');
       fetchData();
-    } catch (err) {
+    } catch {
       // Handled by api.js
     }
   };

@@ -36,7 +36,10 @@ const SubjectPage = () => {
   }, []);
 
   useEffect(() => {
-    fetchData();
+    const timer = setTimeout(() => {
+      fetchData();
+    }, 0);
+    return () => clearTimeout(timer);
   }, [fetchData]);
 
   const filteredData = useMemo(() => {
@@ -67,7 +70,7 @@ const SubjectPage = () => {
       setIsDrawerOpen(false);
       setFormData({ id: null, name: '', code: '', department_id: '' });
       fetchData();
-    } catch (err) {
+    } catch {
       // Error handled by api.js
     }
   };
@@ -82,7 +85,7 @@ const SubjectPage = () => {
       await api.delete(`/admin/subjects/${subjectToDelete.id}`);
       toast.success('Subject archived successfully.');
       fetchData();
-    } catch (err) {
+    } catch {
       // Error handled by api.js
     }
   };

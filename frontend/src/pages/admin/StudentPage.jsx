@@ -60,7 +60,10 @@ const StudentPage = () => {
   }, []);
 
   useEffect(() => {
-    fetchData();
+    const timer = setTimeout(() => {
+      fetchData();
+    }, 0);
+    return () => clearTimeout(timer);
   }, [fetchData]);
 
   const departments = useMemo(() => {
@@ -95,7 +98,7 @@ const StudentPage = () => {
       setFormData({ name: '', email: '', password: '', class_id: '', roll_no: '' });
       setStep(1);
       fetchData();
-    } catch (err) {
+    } catch {
       // Error handled by api.js
     }
   };
@@ -110,7 +113,7 @@ const StudentPage = () => {
       await api.delete(`/admin/students/${studentToDelete.id}`);
       toast.success('Student record deleted successfully.');
       fetchData();
-    } catch (err) {
+    } catch {
       // Error handled by api.js
     }
   };
