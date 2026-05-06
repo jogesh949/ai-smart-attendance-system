@@ -1,4 +1,3 @@
-import React from 'react';
 import { X } from 'lucide-react';
 
 export const Button = ({ children, variant = 'primary', className = '', loading, ...props }) => {

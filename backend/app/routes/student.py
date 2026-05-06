@@ -1,3 +1,5 @@
+import os
+import time
 from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -35,22 +37,49 @@ async def upload_face(
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
 
+    # Check if student already has 10 photos
+    existing_count = db.query(FaceEmbedding).filter(FaceEmbedding.student_id == student.id).count()
+    if existing_count >= 10:
+        raise HTTPException(status_code=400, detail="Maximum limit of 10 photos reached. Please contact admin to reset.")
+
     image_bytes = await file.read()
+    
+    # Ensure upload directory exists
+    UPLOAD_DIR = "uploads/faces"
+    os.makedirs(UPLOAD_DIR, exist_ok=True)
+    
+    # Save the photo with a unique filename (nanoseconds to avoid collision)
+    filename = f"{student.id}_{int(time.time_ns())}.jpg"
+    file_path = os.path.join(UPLOAD_DIR, filename)
+    with open(file_path, "wb") as f:
+        f.write(image_bytes)
+
     embedding = get_face_embedding(image_bytes)
 
-    if embedding is None:
-        raise HTTPException(status_code=400, detail="No face detected")
-
+    # We still need the embedding for automated attendance, 
+    # but we store the image path regardless.
     new_embedding = FaceEmbedding(
         student_id=student.id,
-        embedding=str(embedding)
+        embedding=str(embedding) if embedding else None,
+        image_path=file_path
     )
 
     db.add(new_embedding)
     db.commit()
 
-    return {"message": "Face uploaded successfully"}
+    if embedding is None:
+        return {
+            "message": "Photo saved to database, but no face was detected by AI. You may need to upload a clearer photo for automated attendance.",
+            "face_detected": False
+        }
 
+    return {"message": "Face uploaded and processed successfully", "face_detected": True}
+
+
+from app.models.attendance_session import AttendanceSession
+from app.models.subject import Subject
+
+# ... (rest of the imports)
 
 @router.get("/attendance")
 def get_student_attendance(
@@ -65,23 +94,53 @@ def get_student_attendance(
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
 
-    records = db.query(AttendanceRecord).filter(
+    # Join Record -> Session -> Subject to get names and details
+    query_results = db.query(
+        AttendanceRecord,
+        Subject.name.label("subject_name")
+    ).join(
+        AttendanceSession, AttendanceRecord.session_id == AttendanceSession.id
+    ).join(
+        Subject, AttendanceSession.subject_id == Subject.id
+    ).filter(
         AttendanceRecord.student_id == student.id
     ).all()
 
-    total = len(records)
-    present = len([r for r in records if r.status == "Present"])
+    # Group by subject
+    subject_stats = {}
+    total_classes = 0
+    total_present = 0
 
-    percentage = (present / total * 100) if total > 0 else 0
+    for record, subject_name in query_results:
+        if subject_name not in subject_stats:
+            subject_stats[subject_name] = {"attended": 0, "total": 0}
+        
+        subject_stats[subject_name]["total"] += 1
+        total_classes += 1
+        
+        if record.status == "Present":
+            subject_stats[subject_name]["attended"] += 1
+            total_present += 1
+        elif record.status == "Late":
+            # Late counts as half attendance for percentage but 1 for total
+            subject_stats[subject_name]["attended"] += 0.5
+            total_present += 0.5
+
+    # Format for response
+    records_summary = []
+    for name, stats in subject_stats.items():
+        records_summary.append({
+            "subject": name,
+            "attended": stats["attended"],
+            "total": stats["total"],
+            "percentage": round((stats["attended"] / stats["total"] * 100), 2) if stats["total"] > 0 else 0
+        })
+
+    overall_percentage = (total_present / total_classes * 100) if total_classes > 0 else 0
 
     return {
-        "records": [
-            {
-                "subject": r.session_id,
-                "status": r.status,
-                "percentage": r.percentage
-            }
-            for r in records
-        ],
-        "percentage": round(percentage, 2)
+        "summary": records_summary,
+        "overall_percentage": round(overall_percentage, 2),
+        "total_sessions": total_classes,
+        "total_present": total_present
     }

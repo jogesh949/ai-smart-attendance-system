@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation, Link, Outlet } from 'react-router-dom';
 import { Shield, LayoutDashboard, Layers, Users, BookOpen, MapPin, BarChart3, Camera, LogOut, Menu, X } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
@@ -16,6 +16,10 @@ import TeacherPage from './pages/admin/TeacherPage';
 import StudentPage from './pages/admin/StudentPage';
 import ReportsPage from './pages/admin/ReportsPage';
 import CameraMappingPage from './pages/admin/CameraMappingPage';
+
+import StudentDashboard from './pages/StudentDashboard';
+import TeacherDashboard from './pages/TeacherDashboard';
+import StudentFaceUpload from './pages/StudentFaceUpload';
 
 // --- COMPONENTS ---
 
@@ -156,24 +160,6 @@ const Login = () => {
   );
 };
 
-// --- PLACEHOLDERS FOR OTHER ROLES ---
-// (Normally these would be in separate files too)
-const TeacherDashboardPlaceholder = () => (
-  <div className="p-8 text-center">
-    <h1 className="text-2xl font-bold">Teacher Portal</h1>
-    <p className="text-gray-500 mt-2">Use the separate TeacherDashboard.jsx for full functionality.</p>
-    <Button className="mt-4" onClick={() => window.location.href = '/login'}>Back to Login</Button>
-  </div>
-);
-
-const StudentDashboardPlaceholder = () => (
-  <div className="p-8 text-center">
-    <h1 className="text-2xl font-bold">Student Portal</h1>
-    <p className="text-gray-500 mt-2">Use the separate StudentDashboard.jsx for full functionality.</p>
-    <Button className="mt-4" onClick={() => window.location.href = '/login'}>Back to Login</Button>
-  </div>
-);
-
 // --- MAIN APP ---
 
 export default function App() {
@@ -197,9 +183,10 @@ export default function App() {
           <Route index element={<Navigate to="dashboard" replace />} />
         </Route>
 
-        {/* Other Role Routes (Placeholders or redirected to separate components) */}
-        <Route path="/teacher/dashboard" element={<ProtectedRoute allowedRoles={['teacher']}><TeacherDashboardPlaceholder /></ProtectedRoute>} />
-        <Route path="/student/dashboard" element={<ProtectedRoute allowedRoles={['student']}><StudentDashboardPlaceholder /></ProtectedRoute>} />
+        {/* Other Role Routes */}
+        <Route path="/teacher/dashboard" element={<ProtectedRoute allowedRoles={['teacher']}><TeacherDashboard /></ProtectedRoute>} />
+        <Route path="/student/dashboard" element={<ProtectedRoute allowedRoles={['student']}><StudentDashboard /></ProtectedRoute>} />
+        <Route path="/student/upload-face" element={<ProtectedRoute allowedRoles={['student']}><StudentFaceUpload /></ProtectedRoute>} />
 
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="*" element={<Navigate to="/login" replace />} />

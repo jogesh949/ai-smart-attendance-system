@@ -17,6 +17,11 @@ export default function StudentFaceUpload() {
       return;
     }
 
+    if (selected.length > 10) {
+      alert("You can only upload a maximum of 10 images at once.");
+      return;
+    }
+
     setFiles(selected);
     setPreviews(selected.map((file) => URL.createObjectURL(file)));
   };
@@ -28,6 +33,7 @@ export default function StudentFaceUpload() {
     }
 
     try {
+      let successCount = 0;
       for (const file of files) {
         const formData = new FormData();
         formData.append("file", file);
@@ -38,18 +44,22 @@ export default function StudentFaceUpload() {
             "Content-Type": "multipart/form-data",
           },
         });
+        successCount++;
       }
 
-      alert("Face images uploaded successfully");
+      alert(`Successfully uploaded ${successCount} face images.`);
+      setFiles([]);
+      setPreviews([]);
     } catch (err) {
-      alert(err.response?.data?.detail || "Face upload failed");
+      alert(err.response?.data?.detail || "Face upload failed. You might have reached the 10-photo limit.");
     }
   };
 
   return (
     <div style={{ padding: 30 }}>
       <h2>Upload Face Images</h2>
-      <p>Upload 5–10 clear face images from different angles.</p>
+      <p>Upload 5–10 clear face images from different angles. (Maximum 10 total)</p>
+
 
       <input
         type="file"

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Plus, Save, Layers, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../api';
@@ -10,19 +10,24 @@ const DepartmentPage = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState({ name: '' });
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const res = await api.get('/admin/departments');
       setData(res.data);
-    } catch (err) {
+    } catch {
       toast.error('Failed to load departments');
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => {
+    const loadData = async () => {
+      await fetchData();
+    };
+    loadData();
+  }, [fetchData]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

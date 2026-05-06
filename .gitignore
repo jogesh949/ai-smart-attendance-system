@@ -4,6 +4,8 @@ __pycache__/
 *$py.class
 venv/
 .env
+backend/uploads/
+backend/seed_admin.py
 
 # Node
 node_modules/
