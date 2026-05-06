@@ -1,12 +1,51 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 @import "tailwindcss";
 
-:root {
-  --primary: #1a2b6d;
-  --accent: #00c9a7;
+@theme {
+  --font-orbitron: "Orbitron", sans-serif;
+  --font-dm: "DM Sans", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+  
+  --color-cosmic: #020817;
+  --color-cyan-DEFAULT: #00F5FF;
+  --color-cyan-glow: rgba(0, 245, 255, 0.3);
+  --color-violet-DEFAULT: #7C3AED;
+  --color-success: #10B981;
+  --color-danger: #EF4444;
+  --color-text-primary: #F0F9FF;
+  --color-text-muted: #64748B;
+  
+  --animate-pulse-slow: pulse 3s ease-in-out infinite;
+  --animate-glow: glow 2s ease-in-out infinite alternate;
+  --animate-float: float 6s ease-in-out infinite;
+  
+  @keyframes glow {
+    from { box-shadow: 0 0 5px #00F5FF; }
+    to { box-shadow: 0 0 30px #00F5FF, 0 0 60px #00F5FF; }
+  }
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+  }
 }
 
 body {
-  font-family: 'Inter', sans-serif;
-  background-color: #f8fafc; /* light content area */
+  @apply bg-cosmic text-text-primary font-dm antialiased;
+  /* Hide scrollbars for cleaner futuristic look if preferred */
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-cyan-DEFAULT) var(--color-cosmic);
+}
+
+/* Custom Scrollbar Styles */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: var(--color-cosmic);
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: var(--color-violet-DEFAULT);
+  border-radius: 20px;
+  border: 2px solid var(--color-cosmic);
+}
 }

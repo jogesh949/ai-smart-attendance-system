@@ -2,6 +2,10 @@ from .user import User
 from .student import Student
 from .teacher import Teacher
 from .department import Department
+from .classroom import Classroom
 from .class_model import Class
 from .subject import Subject
 from .attendance_session import AttendanceSession
+from .camera import Camera
+from .teacher_department import teacher_department_association
+from .timetable import Timetable

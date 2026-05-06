@@ -1,164 +1,173 @@
-import { useEffect, useState, useCallback } from "react";
-import axios from "axios";
-import "./StudentDashboard.css";
+import { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
+import { Calendar, BookOpen, Award, TrendingUp, Clock } from 'lucide-react';
+import api from '../api';
+import GlassCard from '../components/GlassCard';
+import CircularProgress from '../components/CircularProgress';
+import PageTransition from '../components/PageTransition';
 
-const API = "http://127.0.0.1:8000";
-
-export default function StudentDashboard() {
-  const [summary, setSummary] = useState([]);
-  const [overall, setOverall] = useState(0);
-  const [stats, setStats] = useState({ total: 0, present: 0 });
-  const [profile] = useState(() => JSON.parse(localStorage.getItem("user")));
-  const [loading, setLoading] = useState(false);
-
-  const token = localStorage.getItem("token");
-
-  const fetchData = useCallback(async () => {
-    if (!token) {
-      alert("Please login again");
-      window.location.href = "/login";
-      return;
-    }
-
-    try {
-      setLoading(true);
-
-      const res = await axios.get(`${API}/student/attendance`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      setSummary(res.data.summary || []);
-      setOverall(res.data.overall_percentage || 0);
-      setStats({
-        total: res.data.total_sessions || 0,
-        present: res.data.total_present || 0
-      });
-    } catch (err) {
-      console.log("Student Attendance Error:", err);
-      alert(err.response?.data?.detail || "Failed to load attendance data");
-    } finally {
-      setLoading(false);
-    }
-  }, [token]);
+const StudentDashboard = () => {
+  const [stats, setStats] = useState({ overall: 0, totalClasses: 0, attended: 0 });
+  const [subjects, setSubjects] = useState([]);
+  const [recentSessions, setRecentSessions] = useState([]);
+  const user = JSON.parse(localStorage.getItem('user'));
 
   useEffect(() => {
-    const load = async () => {
-      await fetchData();
+    const fetchData = async () => {
+      try {
+        const res = await api.get('/student/dashboard');
+        setStats(res.data.stats);
+        setSubjects(res.data.subjects);
+        setRecentSessions(res.data.recent_sessions);
+      } catch (err) {
+        console.error(err);
+      }
     };
-    load();
-  }, [fetchData]);
+    fetchData();
+  }, []);
 
-  const downloadReport = () => {
-    if (summary.length === 0) {
-      alert("No attendance data available");
-      return;
-    }
-
-    let csv = "Subject,Attended,Total,Percentage\n";
-
-    summary.forEach((a) => {
-      csv += `${a.subject},${a.attended},${a.total},${a.percentage || 0}%\n`;
-    });
-
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = window.URL.createObjectURL(blob);
-
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "student_attendance_report.csv";
-    a.click();
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return "Good Morning";
+    if (hour < 18) return "Good Afternoon";
+    return "Good Evening";
   };
 
+  const getStatusMessage = (rate) => {
+    if (rate >= 75) return { text: "Great work! 🌟", color: "text-success" };
+    if (rate >= 50) return { text: "You can do better! 💪", color: "text-yellow-400" };
+    return { text: "⚠️ Attendance critical! Please attend classes.", color: "text-danger" };
+  };
+
+  const status = getStatusMessage(stats.overall);
+
   return (
-    <div className="student-dashboard">
-      <aside className="sidebar">
-        <h2>Student Panel</h2>
+    <PageTransition>
+      <div className="space-y-8">
+        {/* Welcome Banner */}
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="relative p-8 rounded-3xl bg-gradient-to-r from-cyan-DEFAULT/20 to-violet/20 border border-white/10 overflow-hidden"
+        >
+          <div className="absolute top-0 right-0 p-8 opacity-10">
+            <Award size={120} className="text-cyan-DEFAULT" />
+          </div>
+          <h1 className="font-orbitron text-3xl font-black text-white tracking-tight">
+            {getGreeting()}, <span className="text-cyan-DEFAULT">{user?.name}!</span>
+          </h1>
+          <p className="text-text-muted mt-2 font-dm">
+            Here's your attendance overview for this semester. Keep up the momentum!
+          </p>
+        </motion.div>
 
-        <ul>
-          <li className="active">Dashboard</li>
-          <li onClick={() => fetchData()}>Refresh Attendance</li>
-          <li onClick={() => (window.location.href = "/student/upload-face")}>
-            Upload Face
-          </li>
-          <li onClick={() => { localStorage.clear(); window.location.href = "/login"; }}>Logout</li>
-        </ul>
-      </aside>
-
-      <main className="main">
-        <header className="header">
-           <h1>Welcome, {profile?.name || "Student"}</h1>
-           <p className="subtitle">ID: {profile?.id || "N/A"} | INSTITUTIONAL PORTAL</p>
-        </header>
-
-        {loading && <div className="loading-overlay">Updating records...</div>}
-
-        <div className="cards">
-          <div className="card highlight">
-            <h3>Overall Score</h3>
-            <div className="score-container">
-              <span className="score">{overall}%</span>
-              <div className="progress-bar-bg">
-                <div className="progress-bar-fill" style={{ width: `${overall}%` }}></div>
-              </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Main Attendance Ring */}
+          <GlassCard className="flex flex-col items-center justify-center py-12" glowColor="cyan">
+            <CircularProgress value={stats.overall} max={100} label="Overall Attendance" color="#00F5FF" />
+            <div className="mt-8 text-center">
+              <p className={`font-orbitron font-bold text-lg ${status.color}`}>
+                {status.text}
+              </p>
+              <p className="text-text-muted text-sm mt-1">
+                You've attended <span className="text-white font-bold">{stats.attended}</span> out of <span className="text-white font-bold">{stats.totalClasses}</span> classes.
+              </p>
             </div>
-            <p className="card-detail">Total Present: {stats.present} / {stats.total} Classes</p>
-          </div>
+          </GlassCard>
 
-          <div className="card">
-            <h3>Face Enrollment</h3>
-            <p className="text-sm text-gray-500 mb-4">Complete your AI face profile for automated attendance.</p>
-            <button className="btn-primary" onClick={() => (window.location.href = "/student/upload-face")}>
-              Update Face Data
-            </button>
-          </div>
-
-          <div className="card status-card">
-            <h3>Attendance Status</h3>
-            {overall < 75 ? (
-              <div className="status critical">
-                <span className="icon">⚠</span>
-                <p>Low Attendance! You are below the 75% requirement.</p>
+          {/* Quick Stats Cards */}
+          <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
+            <GlassCard glowColor="violet" className="flex items-center gap-6">
+              <div className="w-16 h-16 rounded-2xl bg-violet/10 flex items-center justify-center border border-violet/20">
+                <TrendingUp className="text-violet" size={32} />
               </div>
-            ) : (
-              <div className="status healthy">
-                <span className="icon">✅</span>
-                <p>Status: Healthy. You are meeting requirements.</p>
+              <div>
+                <p className="text-[10px] font-orbitron text-text-muted uppercase tracking-widest">Growth</p>
+                <p className="text-2xl font-orbitron font-bold text-white">+5.2%</p>
+                <p className="text-xs text-success mt-1">vs last month</p>
               </div>
-            )}
-          </div>
-        </div>
+            </GlassCard>
 
-        <div className="section table-section">
-          <h2>Subject-wise Performance</h2>
-
-          {summary.length === 0 ? (
-            <div className="empty-state">No attendance records found yet.</div>
-          ) : (
-            <div className="summary-list">
-              <div className="row header-row">
-                <span>Subject Name</span>
-                <span>Attended / Total</span>
-                <span>Percentage</span>
+            <GlassCard glowColor="cyan" className="flex items-center gap-6">
+              <div className="w-16 h-16 rounded-2xl bg-cyan-DEFAULT/10 flex items-center justify-center border border-cyan-DEFAULT/20">
+                <Clock className="text-cyan-DEFAULT" size={32} />
               </div>
-              {summary.map((a, i) => (
-                <div key={i} className="row">
-                  <span className="font-bold">{a.subject}</span>
-                  <span className="text-center">{a.attended} / {a.total}</span>
-                  <span className={`percentage ${a.percentage < 75 ? 'low' : 'good'}`}>
-                    {a.percentage}%
-                  </span>
+              <div>
+                <p className="text-[10px] font-orbitron text-text-muted uppercase tracking-widest">Next Class</p>
+                <p className="text-2xl font-orbitron font-bold text-white">10:30 AM</p>
+                <p className="text-xs text-text-muted mt-1">Advanced Physics</p>
+              </div>
+            </GlassCard>
+
+            <div className="md:col-span-2">
+              <GlassCard className="h-full">
+                <h3 className="font-orbitron font-bold text-white text-sm uppercase tracking-widest mb-6 flex items-center gap-2">
+                  <BookOpen className="text-cyan-DEFAULT" size={18} />
+                  Subject-wise Breakdown
+                </h3>
+                <div className="space-y-6">
+                  {subjects.map((sub, idx) => (
+                    <div key={idx} className="space-y-2">
+                      <div className="flex justify-between text-xs font-medium">
+                        <span className="text-white">{sub.name}</span>
+                        <span className="text-cyan-DEFAULT font-mono">{sub.percentage}%</span>
+                      </div>
+                      <div className="h-2 bg-white/5 rounded-full overflow-hidden border border-white/5">
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{ width: `${sub.percentage}%` }}
+                          transition={{ duration: 1, delay: idx * 0.1 }}
+                          className="h-full bg-gradient-to-r from-cyan-DEFAULT to-violet shadow-[0_0_10px_#00F5FF]"
+                        />
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              </GlassCard>
             </div>
-          )}
+          </div>
         </div>
 
-        <div className="actions-footer">
-          <button className="btn-outline" onClick={downloadReport}>Download CSV Report</button>
-        </div>
-      </main>
-    </div>
+        {/* Recent Sessions Table */}
+        <GlassCard>
+          <h3 className="font-orbitron font-bold text-white text-sm uppercase tracking-widest mb-6 flex items-center gap-2">
+            <Calendar className="text-violet" size={18} />
+            Recent Attendance History
+          </h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="border-b border-white/5 text-[10px] font-orbitron text-text-muted uppercase tracking-widest">
+                  <th className="pb-4">Subject</th>
+                  <th className="pb-4">Date</th>
+                  <th className="pb-4">Session Type</th>
+                  <th className="pb-4 text-right">Status</th>
+                </tr>
+              </thead>
+              <tbody className="text-sm">
+                {recentSessions.map((session, idx) => (
+                  <tr key={idx} className="group hover:bg-white/5 transition-colors">
+                    <td className="py-4 font-bold text-white">{session.subject}</td>
+                    <td className="py-4 text-text-muted">{session.date}</td>
+                    <td className="py-4 text-text-muted">{session.type || 'Lecture'}</td>
+                    <td className="py-4 text-right">
+                      <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-tighter border ${
+                        session.status === 'present' 
+                        ? 'bg-success/10 text-success border-success/30' 
+                        : 'bg-danger/10 text-danger border-danger/30'
+                      }`}>
+                        {session.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </GlassCard>
+      </div>
+    </PageTransition>
   );
-}
+};
+
+export default StudentDashboard;

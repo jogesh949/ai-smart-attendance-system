@@ -6,7 +6,7 @@ import requests
 import argparse
 import sys
 
-from app.services.face_service import get_face_embedding, compare_faces
+from app.services.face_service import get_face_embedding, compare_faces, get_faces_with_details, parse_embedding
 from app.database.connection import SessionLocal
 from app.models.face_embedding import FaceEmbedding
 from app.models.attendance_session import AttendanceSession
@@ -34,11 +34,9 @@ try:
 
     known = []
     for e in embeddings:
-        if e.embedding:
-            try:
-                known.append((e.student_id, ast.literal_eval(e.embedding)))
-            except Exception as err:
-                print(f"Skipping invalid embedding for student {e.student_id}: {err}")
+        emb = parse_embedding(e.embedding)
+        if emb:
+            known.append((e.student_id, emb))
 
     db.close()
 except Exception as e:
@@ -48,6 +46,9 @@ except Exception as e:
 print("Loaded embeddings:", len(known))
 
 cap = cv2.VideoCapture(CAMERA_INDEX)
+# Set resolution for better quality
+cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
 if not cap.isOpened():
     print(f"❌ Camera {CAMERA_INDEX} not opened")
     sys.exit(1)
@@ -78,23 +79,30 @@ while True:
         print("❌ Failed to read frame")
         break
 
-    # Add visual indicators to the frame
-    cv2.putText(frame, f"Session: {SESSION_ID}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-    cv2.imshow("AI Attendance Camera", frame)
-
     success, buffer = cv2.imencode(".jpg", frame)
     if not success:
         continue
 
     image_bytes = buffer.tobytes()
-    embedding = get_face_embedding(image_bytes)
+    details = get_faces_with_details(image_bytes)
 
-    if embedding is not None:
-        student_id = compare_faces(known, embedding)
+    for face in details:
+        bbox = face["bbox"]
+        embedding = face["embedding"]
+        
+        student_id, confidence = compare_faces(known, embedding)
+
+        # Draw box and label for visualization
+        x1, y1, x2, y2 = [int(v) for v in bbox]
+        color = (0, 255, 0) if student_id else (0, 0, 255)
+        cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+        
+        label = f"ID: {student_id} ({confidence}%)" if student_id else "Unknown"
+        cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
 
         if student_id:
             frame_count[student_id] += 1
-            print(f"Detected Student {student_id} | Count: {frame_count[student_id]}")
+            print(f"Detected Student {student_id} | Count: {frame_count[student_id]} | Confidence: {confidence}%")
 
             if frame_count[student_id] >= CONFIRM_FRAMES and student_id not in marked_students:
                 print(f"🎯 Confirmed Student {student_id}. Marking attendance...")
@@ -117,6 +125,10 @@ while True:
                     print(f"❌ API Request Failed: {e}")
 
                 time.sleep(SCAN_DELAY)
+
+    # Add visual indicators to the frame
+    cv2.putText(frame, f"Session: {SESSION_ID}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+    cv2.imshow("AI Attendance Camera", frame)
 
     if cv2.waitKey(1) & 0xFF == ord("q"):
         break

@@ -36,29 +36,69 @@ def get_faces_with_details(image_bytes):
 
         results = []
         for face in faces:
+            # Normalize embedding for better comparison
+            feat = face.embedding
+            norm_feat = feat / np.linalg.norm(feat)
+            
             results.append({
                 "bbox": face.bbox.tolist(), # [x1, y1, x2, y2]
                 "det_score": float(face.det_score),
-                "embedding": face.embedding.tolist()
+                "embedding": norm_feat.tolist()
             })
         return results
     except Exception as e:
         logger.error(f"Error in get_faces_with_details: {e}")
         return []
 
-def compare_faces(known_embeddings, new_embedding, threshold=1.0):
+import ast
+
+def parse_embedding(embedding_str):
+    """Safely parse embedding string from DB."""
+    try:
+        if not embedding_str:
+            return None
+        return ast.literal_eval(embedding_str)
+    except Exception as e:
+        logger.error(f"Error parsing embedding: {e}")
+        return None
+
+def compare_faces(known_embeddings, new_embedding, threshold=0.8):
+    """
+    Compare a new embedding against known embeddings.
+    Threshold of 0.7 - 0.9 is strict for normalized L2 distance on InsightFace.
+    0.8 is a safe, strict default.
+    """
+    if not known_embeddings or new_embedding is None:
+        return None, 0
+
     best_match = None
     min_dist = threshold
+    
+    # Ensure new embedding is a numpy array and normalized
+    new_embedding = np.array(new_embedding)
+    new_norm = np.linalg.norm(new_embedding)
+    if new_norm > 0:
+        new_embedding = new_embedding / new_norm
 
     for student_id, embedding in known_embeddings:
-        dist = np.linalg.norm(np.array(embedding) - np.array(new_embedding))
+        if embedding is None:
+            continue
+            
+        # Ensure known embedding is normalized (in case old ones weren't)
+        emb = np.array(embedding)
+        emb_norm = np.linalg.norm(emb)
+        if emb_norm > 0:
+            emb = emb / emb_norm
+            
+        dist = np.linalg.norm(emb - new_embedding)
         if dist < min_dist:
             min_dist = dist
             best_match = student_id
 
     if best_match:
         # Calculate a mock confidence based on distance
-        confidence = max(0, 1 - (min_dist / threshold))
+        # For normalized L2, max dist is 2.0.
+        confidence = max(0, 1 - (min_dist / 1.5)) # Using 1.5 as a scaling factor for confidence
         return best_match, round(confidence * 100, 2)
 
     return None, 0

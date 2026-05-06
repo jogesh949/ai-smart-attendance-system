@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload
 from pydantic import BaseModel
+from typing import List
 from app.database.connection import SessionLocal
 from app.models.department import Department
 from app.models.classroom import Classroom
@@ -12,8 +13,12 @@ from app.models.student import Student
 from app.models.face_embedding import FaceEmbedding
 from app.models.attendance_record import AttendanceRecord
 from app.models.attendance_session import AttendanceSession
+from app.models.camera import Camera
+from app.models.timetable import Timetable
 from app.routes.auth import get_current_user
 from passlib.context import CryptContext
+import cv2
+import time
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -183,7 +188,7 @@ class TeacherRequest(BaseModel):
     name: str
     email: str
     password: str
-    department_id: int
+    department_ids: List[int]
 
 @router.post("/teachers")
 def add_teacher(data: TeacherRequest, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
@@ -204,27 +209,35 @@ def add_teacher(data: TeacherRequest, db: Session = Depends(get_db), current_use
     # create teacher
     teacher = Teacher(
         user_id=user.id,
-        department_id=data.department_id,
         teacher_code=f"TCH{user.id}"
     )
+    
+    # Fetch departments and add to teacher
+    departments = db.query(Department).filter(Department.id.in_(data.department_ids)).all()
+    teacher.departments = departments
+
     db.add(teacher)
     db.commit()
     return {"message": "Teacher added successfully"}
 
 @router.get("/teachers")
 def get_teachers(db: Session = Depends(get_db)):
-    # Join with User and Department
-    results = db.query(Teacher, User.name, User.email, Department.name.label("department_name"))\
-                .join(User, Teacher.user_id == User.id)\
-                .join(Department, Teacher.department_id == Department.id).all()
-    return [{
-        "id": r[0].id,
-        "user_id": r[0].user_id,
-        "name": r[1],
-        "email": r[2],
-        "department_name": r[3],
-        "teacher_code": r[0].teacher_code
-    } for r in results]
+    # Join with User and load departments
+    teachers = db.query(Teacher).options(joinedload(Teacher.departments)).all()
+    
+    results = []
+    for t in teachers:
+        user = db.query(User).filter(User.id == t.user_id).first()
+        results.append({
+            "id": t.id,
+            "user_id": t.user_id,
+            "name": user.name if user else "Unknown",
+            "email": user.email if user else "N/A",
+            "departments": [{"id": d.id, "name": d.name} for d in t.departments],
+            "department_names": ", ".join([d.name for d in t.departments]),
+            "teacher_code": t.teacher_code
+        })
+    return results
 
 # --- STUDENTS ---
 
@@ -336,8 +349,6 @@ def get_student_details_admin(id: int, db: Session = Depends(get_db), current_us
             })
             if record.status == "Present":
                 attended_count += 1
-            elif record.status == "Late":
-                attended_count += 0.5
 
         attendance_percentage = round((attended_count / total_sessions * 100), 2) if total_sessions > 0 else 0
 
@@ -407,4 +418,212 @@ def delete_teacher(id: int, db: Session = Depends(get_db), current_user = Depend
         
     db.commit()
     return {"message": "Teacher deleted successfully"}
+
+# --- CAMERA MAPPING ---
+
+class CameraRequest(BaseModel):
+    classroom_id: int
+    name: str
+    camera_type: str
+    source_url: str
+    position: str
+    resolution: str = "1280x720"
+    fps: int = 30
+    status: str = "Active"
+    is_primary: bool = False
+    notes: str = None
+
+@router.post("/cameras")
+def add_camera(data: CameraRequest, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Only admin allowed")
+    
+    # If this is set as primary, unset other primaries for this classroom
+    if data.is_primary:
+        db.query(Camera).filter(Camera.classroom_id == data.classroom_id).update({"is_primary": False})
+
+    camera = Camera(
+        classroom_id=data.classroom_id,
+        name=data.name,
+        camera_type=data.camera_type,
+        source_url=data.source_url,
+        position=data.position,
+        resolution=data.resolution,
+        fps=data.fps,
+        status=data.status,
+        is_primary=data.is_primary,
+        notes=data.notes
+    )
+    db.add(camera)
+    db.commit()
+    db.refresh(camera)
+    return camera
+
+@router.get("/cameras")
+def get_cameras(db: Session = Depends(get_db)):
+    results = db.query(Camera, Classroom.room_name).join(Classroom, Camera.classroom_id == Classroom.id).all()
+    return [{
+        "id": r[0].id,
+        "classroom_id": r[0].classroom_id,
+        "classroom_name": r[1],
+        "name": r[0].name,
+        "camera_type": r[0].camera_type,
+        "source_url": r[0].source_url,
+        "position": r[0].position,
+        "resolution": r[0].resolution,
+        "fps": r[0].fps,
+        "status": r[0].status,
+        "is_primary": r[0].is_primary,
+        "current_status": r[0].current_status,
+        "last_active_time": r[0].last_active_time.isoformat() if r[0].last_active_time else None,
+        "notes": r[0].notes
+    } for r in results]
+
+@router.delete("/cameras/{id}")
+def delete_camera(id: int, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Only admin allowed")
+    camera = db.query(Camera).filter(Camera.id == id).first()
+    if not camera:
+        raise HTTPException(status_code=404, detail="Camera not found")
+    db.delete(camera)
+    db.commit()
+    return {"message": "Camera deleted"}
+
+@router.post("/cameras/{id}/test")
+def test_camera(id: int, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Only admin allowed")
+    
+    camera = db.query(Camera).filter(Camera.id == id).first()
+    if not camera:
+        raise HTTPException(status_code=404, detail="Camera not found")
+    
+    source = camera.source_url
+    if source.isdigit():
+        source = int(source)
+    
+    cap = None
+    # Try different backends for Windows if it's a numeric source
+    if isinstance(source, int):
+        # List of backends to try on Windows
+        backends = [cv2.CAP_DSHOW, cv2.CAP_MSMF, None]
+        for backend in backends:
+            if backend is not None:
+                cap = cv2.VideoCapture(source, backend)
+            else:
+                cap = cv2.VideoCapture(source)
+                
+            if cap.isOpened():
+                ret, _ = cap.read()
+                if ret:
+                    print(f"DEBUG: Success opening camera {source} with backend {backend}")
+                    break
+                else:
+                    cap.release()
+                    cap = None
+            else:
+                cap.release()
+                cap = None
+    else:
+        cap = cv2.VideoCapture(source)
+
+    if not cap or not cap.isOpened():
+        camera.current_status = "Error"
+        db.commit()
+        return {"success": False, "error": f"Could not open camera source: {source}. Ensure it is connected and not in use by another app."}
+    
+    ret, _ = cap.read()
+    if not ret:
+        cap.release()
+        camera.current_status = "Error"
+        db.commit()
+        return {"success": False, "error": "Could not capture frame from source."}
+    
+    width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+    height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    
+    cap.release()
+    
+    camera.current_status = "Online"
+    camera.last_active_time = datetime.now()
+    camera.resolution = f"{int(width)}x{int(height)}"
+    if fps > 0:
+        camera.fps = int(fps)
+    db.commit()
+    
+    return {
+        "success": True,
+        "resolution": f"{int(width)}x{int(height)}",
+        "fps": int(fps) if fps > 0 else "Unknown"
+    }
+
+# --- TIMETABLE ---
+
+class TimetableRequest(BaseModel):
+    day: str
+    start_time: str # Format: HH:MM
+    end_time: str   # Format: HH:MM
+    class_id: int
+    subject_id: int
+    teacher_id: int
+    classroom_id: int
+
+@router.post("/timetables")
+def add_timetable(data: TimetableRequest, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Only admin allowed")
+    
+    from datetime import datetime
+    try:
+        start = datetime.strptime(data.start_time, "%H:%M").time()
+        end = datetime.strptime(data.end_time, "%H:%M").time()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid time format. Use HH:MM")
+
+    timetable = Timetable(
+        day=data.day,
+        start_time=start,
+        end_time=end,
+        class_id=data.class_id,
+        subject_id=data.subject_id,
+        teacher_id=data.teacher_id,
+        classroom_id=data.classroom_id
+    )
+    db.add(timetable)
+    db.commit()
+    db.refresh(timetable)
+    return timetable
+
+@router.get("/timetables")
+def get_timetables(db: Session = Depends(get_db)):
+    results = db.query(Timetable).options(
+        joinedload(Timetable.class_name),
+        joinedload(Timetable.subject),
+        joinedload(Timetable.teacher),
+        joinedload(Timetable.classroom)
+    ).all()
+    
+    return [{
+        "id": t.id,
+        "day": t.day,
+        "start_time": t.start_time.strftime("%H:%M"),
+        "end_time": t.end_time.strftime("%H:%M"),
+        "class_name": t.class_name.name if t.class_name else "N/A",
+        "subject_name": t.subject.name if t.subject else "N/A",
+        "teacher_name": db.query(User).filter(User.id == t.teacher.user_id).first().name if t.teacher else "N/A",
+        "classroom_name": t.classroom.room_name if t.classroom else "N/A"
+    } for t in results]
+
+@router.delete("/timetables/{id}")
+def delete_timetable(id: int, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Only admin allowed")
+    timetable = db.query(Timetable).filter(Timetable.id == id).first()
+    if not timetable:
+        raise HTTPException(status_code=404, detail="Entry not found")
+    db.delete(timetable)
+    db.commit()
+    return {"message": "Timetable entry deleted"}
 

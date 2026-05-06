@@ -1,126 +1,154 @@
-import { useState } from "react";
-import axios from "axios";
-import "./login.css";
+import { useState } from 'react';
+import { motion } from 'framer-motion';
+import { User, Lock, Bot } from 'lucide-react';
+import { useAuth } from '../hooks/useAuth';
+import NeuralBackground from '../components/NeuralBackground';
+import GlassCard from '../components/GlassCard';
+import { toast } from 'react-hot-toast';
 
-const API = "http://127.0.0.1:8000";
-
-export default function Login() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+const Login = () => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [role, setRole] = useState('student'); // Default role
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [errorShake, setErrorShake] = useState(false);
+  const { login } = useAuth();
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    setError("");
-
-    if (!email || !password) {
-      setError("Please enter both email and password.");
-      return;
-    }
-
     setLoading(true);
+    setErrorShake(false);
 
     try {
-      const res = await axios.post(`${API}/auth/login`, {
-        email,
-        password,
-      });
-
-      const data = res.data;
-
-      // Save data
-      localStorage.setItem("token", data.access_token);
-      localStorage.setItem("role", data.user.role);
-      localStorage.setItem("user", JSON.stringify(data.user));
-
-      // Redirect based on role
-      if (data.user.role === "admin") {
-        window.location.href = "/admin/dashboard";
-      } else if (data.user.role === "teacher") {
-        window.location.href = "/teacher/dashboard";
-      } else if (data.user.role === "student") {
-        window.location.href = "/student/dashboard";
+      const success = await login({ email, password, role });
+      if (success) {
+        toast.success("Welcome back! The AI is ready. 🤖");
+        // Navigation handled by ProtectedRoute in App.jsx
+      } else {
+        setErrorShake(true);
+        toast.error("Invalid credentials or role. Please try again.");
+        setTimeout(() => setErrorShake(false), 1000); // Reset shake animation
       }
     } catch (err) {
-      setError(err.response?.data?.detail || "Invalid credentials. Please try again.");
+      setErrorShake(true);
+      toast.error("An unexpected error occurred. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
-  const autoFill = (role) => {
-    setEmail(`${role}@example.com`);
-    setPassword("password123");
-    setError("");
-  };
+  const roleButtons = [
+    { id: 'admin', label: '👑 Admin' },
+    { id: 'teacher', label: '🎓 Teacher' },
+    { id: 'student', label: '🧑‍🎓 Student' },
+  ];
 
   return (
-    <div className="login-container">
-      {/* Background Blobs */}
-      <div className="login-bg-blob blob-1"></div>
-      <div className="login-bg-blob blob-2"></div>
+    <div className="relative flex items-center justify-center min-h-screen p-4 overflow-hidden">
+      <NeuralBackground />
 
-      <div className="login-glass-card animate-fade-in-up">
-        <div className="login-header">
-          <div className="login-logo-wrapper">
-            <span className="login-logo-icon">💠</span>
-          </div>
-          <h1 className="login-title">Welcome Back</h1>
-          <p className="login-subtitle">Sign in to AI Attendance System</p>
-        </div>
-
-        {error && (
-          <div className="login-error animate-fade-in-up">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-              <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
-              <path d="M7.002 11a1 1 0 1 1 2 0 1 1 0 0 1-2 0zM7.1 4.995a.905.905 0 1 1 1.8 0l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 4.995z"/>
-            </svg>
-            {error}
-          </div>
-        )}
-
-        <form className="login-form" onSubmit={handleLogin}>
-          <div className="input-group">
-            <label className="input-label">Email Address</label>
-            <input
-              type="email"
-              className="login-input"
-              placeholder="name@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              disabled={loading}
-            />
-          </div>
-
-          <div className="input-group">
-            <label className="input-label">Password</label>
-            <input
-              type="password"
-              className="login-input"
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              disabled={loading}
-            />
-          </div>
-
-          <button 
-            type="submit" 
-            className="login-btn"
-            disabled={loading}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.8 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.8, ease: 'easeOut' }}
+        className={`z-10 w-full max-w-md ${errorShake ? 'animate-shake' : ''}`}
+      >
+        <GlassCard className="p-8 text-center" tilt={false}>
+          <motion.div
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ type: 'spring', stiffness: 200, damping: 10, delay: 0.2 }}
+            className="mb-6"
           >
-            {loading ? "Authenticating..." : "Sign In"}
-          </button>
-        </form>
+            <Bot size={64} className="mx-auto text-cyan-DEFAULT animate-pulse-slow" />
+            <h1 className="font-orbitron text-3xl font-bold text-white mt-4">AI Attend</h1>
+            <p className="text-text-muted text-sm mt-2">Your classroom, powered by intelligence ✨</p>
+          </motion.div>
 
-        <div className="demo-credentials">
-          Test Roles: 
-          <span onClick={() => autoFill('admin')}>Admin</span> | 
-          <span onClick={() => autoFill('teacher')}>Teacher</span> | 
-          <span onClick={() => autoFill('student')}>Student</span>
-        </div>
-      </div>
+          <form onSubmit={handleLogin} className="space-y-6">
+            {/* Role Selector */}
+            <div className="flex justify-center gap-2 mb-6">
+              {roleButtons.map((rb) => (
+                <motion.button
+                  key={rb.id}
+                  type="button"
+                  onClick={() => setRole(rb.id)}
+                  className={`px-4 py-2 rounded-full text-sm font-orbitron font-bold transition-all duration-300
+                    ${role === rb.id
+                      ? 'bg-cyan-DEFAULT text-cosmic shadow-lg shadow-cyan-DEFAULT/30'
+                      : 'bg-white/10 text-text-muted hover:bg-white/20'
+                    }`}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  {rb.label}
+                </motion.button>
+              ))}
+            </div>
+
+            {/* Email Input */}
+            <div className="relative group">
+              <input
+                type="email"
+                id="email"
+                className="w-full bg-transparent border-b-2 border-white/20 text-white py-3 px-0 focus:outline-none focus:border-cyan-DEFAULT peer transition-colors"
+                placeholder=" "
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+              <label
+                htmlFor="email"
+                className="absolute left-0 -top-4 text-text-muted text-xs font-orbitron uppercase tracking-widest
+                           peer-placeholder-shown:top-3 peer-placeholder-shown:text-base peer-placeholder-shown:text-white/50
+                           peer-focus:-top-4 peer-focus:text-xs peer-focus:text-cyan-DEFAULT transition-all"
+              >
+                Email
+              </label>
+              <User size={18} className="absolute right-0 top-3 text-text-muted peer-focus:text-cyan-DEFAULT transition-colors" />
+            </div>
+
+            {/* Password Input */}
+            <div className="relative group">
+              <input
+                type="password"
+                id="password"
+                className="w-full bg-transparent border-b-2 border-white/20 text-white py-3 px-0 focus:outline-none focus:border-cyan-DEFAULT peer transition-colors"
+                placeholder=" "
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+              <label
+                htmlFor="password"
+                className="absolute left-0 -top-4 text-text-muted text-xs font-orbitron uppercase tracking-widest
+                           peer-placeholder-shown:top-3 peer-placeholder-shown:text-base peer-placeholder-shown:text-white/50
+                           peer-focus:-top-4 peer-focus:text-xs peer-focus:text-cyan-DEFAULT transition-all"
+              >
+                Password
+              </label>
+              <Lock size={18} className="absolute right-0 top-3 text-text-muted peer-focus:text-cyan-DEFAULT transition-colors" />
+            </div>
+
+            <motion.button
+              type="submit"
+              className="w-full py-3 rounded-xl bg-gradient-to-r from-cyan-DEFAULT to-violet text-white font-orbitron font-bold uppercase tracking-widest shadow-lg shadow-cyan-DEFAULT/20 hover:shadow-cyan-DEFAULT/40 transition-all duration-300 flex items-center justify-center gap-2"
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              disabled={loading}
+              // Add ripple effect (conceptual, actual implementation would be more complex)
+              style={{
+                background: loading ? 'linear-gradient(to right, var(--color-cyan-DEFAULT), var(--color-violet))' : 'linear-gradient(to right, var(--color-cyan-DEFAULT), var(--color-violet))',
+                boxShadow: loading ? '0 0 20px rgba(0,245,255,0.3)' : '0 0 20px rgba(0,245,255,0.3)',
+              }}
+            >
+              {loading ? <motion.div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : 'Login'}
+            </motion.button>
+          </form>
+        </GlassCard>
+      </motion.div>
     </div>
   );
-}
+};
+
+export default Login;

@@ -3,7 +3,7 @@ import sys
 import os
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from app.database.connection import SessionLocal
 from app.routes.auth import get_current_user
 from app.models.teacher import Teacher
@@ -14,7 +14,7 @@ from app.models.department import Department
 from app.models.attendance_record import AttendanceRecord
 from app.models.attendance_session import AttendanceSession
 from app.models.subject import Subject
-from app.models.attendance_session import AttendanceSession
+from app.models.timetable import Timetable
 
 router = APIRouter(prefix="/teacher", tags=["Teacher"])
 
@@ -128,8 +128,24 @@ def start_session(
     db.commit()
     db.refresh(session)
 
+    # --- AUTO-INITIALIZE ATTENDANCE RECORDS ---
+    # Get all students in this class
+    students = db.query(Student).filter(Student.class_id == data.class_id).all()
+    
+    for student in students:
+        # Create default "Absent" record for every student in the class
+        record = AttendanceRecord(
+            student_id=student.id,
+            session_id=session.id,
+            status="Absent",
+            percentage=0
+        )
+        db.add(record)
+    
+    db.commit()
+
     return {
-        "message": "Session started and AI Camera launched",
+        "message": "Session started and attendance initialized",
         "session_id": session.id
     }
 
@@ -152,3 +168,62 @@ def stop_session(
     db.commit()
 
     return {"message": "Session stopped"}
+
+@router.get("/session/{session_id}")
+def get_session_details(
+    session_id: int,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    if current_user.role != "teacher":
+        raise HTTPException(status_code=403, detail="Only teacher allowed")
+
+    session = db.query(AttendanceSession).filter(
+        AttendanceSession.id == session_id
+    ).first()
+
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    start = session.start_time
+    end = session.end_time or datetime.utcnow()
+    duration = end - start
+    
+    # Format duration as HH:MM:SS
+    total_seconds = int(duration.total_seconds())
+    hours, remainder = divmod(total_seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    duration_str = f"{hours:02}:{minutes:02}:{seconds:02}"
+
+    return {
+        "id": session.id,
+        "start_time": start.strftime("%Y-%m-%d %H:%M:%S"),
+        "end_time": session.end_time.strftime("%Y-%m-%d %H:%M:%S") if session.end_time else None,
+        "status": session.status,
+        "duration": duration_str
+    }
+
+@router.get("/timetable")
+def get_teacher_timetable(db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+    if current_user.role != "teacher":
+        raise HTTPException(status_code=403, detail="Only teacher allowed")
+
+    teacher = db.query(Teacher).filter(Teacher.user_id == current_user.id).first()
+    if not teacher:
+        raise HTTPException(status_code=404, detail="Teacher record not found")
+
+    results = db.query(Timetable).filter(Timetable.teacher_id == teacher.id).options(
+        joinedload(Timetable.class_name),
+        joinedload(Timetable.subject),
+        joinedload(Timetable.classroom)
+    ).all()
+
+    return [{
+        "id": t.id,
+        "day": t.day,
+        "start_time": t.start_time.strftime("%H:%M"),
+        "end_time": t.end_time.strftime("%H:%M"),
+        "class_name": t.class_name.name if t.class_name else "N/A",
+        "subject_name": t.subject.name if t.subject else "N/A",
+        "classroom_name": t.classroom.room_name if t.classroom else "N/A"
+    } for t in results]

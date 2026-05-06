@@ -1,395 +1,351 @@
-import { useEffect, useState, useCallback } from "react";
-import axios from "axios";
-import "./TeacherDashboard.css";
+import { useState, useEffect } from 'react';
+import { Camera, Users, Activity, Play, Square, Download, UserPlus, RefreshCcw, Edit } from 'lucide-react';
+import { toast } from 'react-hot-toast';
+import api from '../api';
+import { usePolling } from '../hooks/usePolling';
+import GlassCard from '../components/GlassCard';
+import AnimatedCounter from '../components/AnimatedCounter';
+import CircularProgress from '../components/CircularProgress';
+import StatusBadge from '../components/StatusBadge';
+import HUDFrame from '../components/HUDFrame';
+import PageTransition from '../components/PageTransition';
+import confetti from 'canvas-confetti';
+import ConfirmModal from '../components/ConfirmModal';
+import { motion } from 'framer-motion';
 
-const API = "http://127.0.0.1:8000";
-
-export default function TeacherDashboard() {
-  const [activeTab, setActiveTab] = useState("dashboard");
+const TeacherDashboard = () => {
+  const [session, setSession] = useState(null);
+  const [attendance, setAttendance] = useState([]);
+  const [stats, setStats] = useState({ present: 0, absent: 0, rate: 0 });
+  const [isLive, setIsLive] = useState(false);
+  const [isCameraActive, setIsCameraActive] = useState(false); // New state for camera stream status
   const [classes, setClasses] = useState([]);
   const [subjects, setSubjects] = useState([]);
-  const [classrooms, setClassrooms] = useState([]);
+  const [selectedClass, setSelectedClass] = useState('');
+  const [selectedSubject, setSelectedSubject] = useState('');
+  const [isStartConfirmOpen, setIsStartConfirmOpen] = useState(false);
+  const [isEndConfirmOpen, setIsEndConfirmOpen] = useState(false);
 
-  const [classId, setClassId] = useState("");
-  const [subjectId, setSubjectId] = useState("");
-  const [classroomId, setClassroomId] = useState("");
-
-  const [sessionId, setSessionId] = useState(null);
-  const [report, setReport] = useState([]);
-
-  // --- SEARCH STATE ---
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState([]);
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [studentDetails, setStudentDetails] = useState(null);
-
-  const token = localStorage.getItem("token");
-
-  const handleSearch = async (e) => {
-    e.preventDefault();
-    if (!searchQuery) return;
-    console.log("Searching for:", searchQuery);
-    try {
-      const res = await axios.get(`${API}/teacher/search-student?query=${searchQuery}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      console.log("Search results:", res.data);
-      setSearchResults(res.data);
-      setIsSearchOpen(true);
-    } catch (err) {
-      console.error("Search Error:", err);
-      alert("Search failed. Check console for details.");
-    }
-  };
-
-  const showStudent = async (id) => {
-    try {
-      const res = await axios.get(`${API}/teacher/student-details/${id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setStudentDetails(res.data);
-    } catch {
-      alert("Failed to load details");
-    }
-  };
-
-  const fetchDropdownData = useCallback(async () => {
-    try {
-      const [classRes, subjectRes, classroomRes] = await Promise.all([
-        axios.get(`${API}/admin/classes`),
-        axios.get(`${API}/admin/subjects`),
-        axios.get(`${API}/admin/classrooms`)
-      ]);
-
-      setClasses(classRes.data || []);
-      setSubjects(subjectRes.data || []);
-      setClassrooms(classroomRes.data || []);
-    } catch {
-      console.log("Dropdown Error");
-    }
+  // Fetch initial data
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [classesRes, subjectsRes] = await Promise.all([
+          api.get('/admin/classes'),
+          api.get('/admin/subjects')
+        ]);
+        setClasses(classesRes.data);
+        setSubjects(subjectsRes.data);
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    fetchData();
   }, []);
 
-  useEffect(() => {
-    const load = async () => {
-      await fetchDropdownData();
-    };
-    load();
-  }, [fetchDropdownData]);
+  // Polling for attendance updates every 3s
+  usePolling(async () => {
+    if (isLive && session) {
+      // Check session status every 100 frames to reduce DB load
+      // This logic is better placed in the generate_frames function on the backend
+      // For frontend polling, we just check if the session is still active
+      try {
+        const res = await api.get(`/attendance/session/${session.id}`);
+        const newAttendance = res.data.logs;
+
+        // Check for newly detected students and show toast
+        newAttendance.forEach(newLog => {
+          if (newLog.status === 'present' && !attendance.some(oldLog => oldLog.student_id === newLog.student_id && oldLog.status === 'present')) {
+            toast.success(`👁️ ${newLog.student_name} recognized and marked present!`);
+          }
+        });
+
+        setAttendance(newAttendance);
+        const presentCount = newAttendance.filter(l => l.status === 'present').length;
+        const total = newAttendance.length;
+        const rate = total > 0 ? (presentCount / total) * 100 : 0;
+        
+        // Confetti burst for 100% attendance
+        if (rate === 100 && stats.rate < 100 && total > 0) {
+          confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+          toast.success("🎊 Perfect attendance today! Amazing class!");
+        }
+        setStats({ present: presentCount, absent: total - presentCount, rate });
+      } catch (err) {
+        console.error(err);
+      }
+    }
+  }, 3000);
 
   const startSession = async () => {
-    if (!classroomId || !classId || !subjectId) {
-      alert("Please select classroom, class, and subject");
+    if (!selectedClass || !selectedSubject) {
+      toast.error("Please select class and subject first.");
       return;
     }
-
     try {
-      const res = await axios.post(
-        `${API}/teacher/start-session`,
-        {
-          classroom_id: Number(classroomId),
-          class_id: Number(classId),
-          subject_id: Number(subjectId),
-        },
-        {
-          headers: { Authorization: `Bearer ${token}` }
-        }
-      );
-
-      setSessionId(res.data.session_id);
-      alert(`Session started. Session ID: ${res.data.session_id}`);
+      const res = await api.post('/attendance/start', { 
+        class_id: selectedClass, 
+        subject_id: selectedSubject 
+      });
+      setSession(res.data);
+      setIsLive(true);
+      toast.success("🚀 Session is live! AI surveillance active.");
+      setIsStartConfirmOpen(false);
+      setIsCameraActive(true); // Assume camera starts active with session
     } catch (err) {
-      alert(err.response?.data?.detail || "Failed to start session");
+      console.error(err);
     }
   };
 
-  const stopSession = async () => {
+  const endSession = async () => {
     try {
-      await axios.post(`${API}/teacher/stop-session?session_id=${sessionId}`, {}, {
-        headers: { Authorization: `Bearer ${token}` }
+      await api.post(`/attendance/end/${session.id}`);
+      setIsLive(false);
+      setSession(null);
+      setIsCameraActive(false); // Camera stops with session
+      setIsEndConfirmOpen(false);
+      toast.success("✅ Session complete! Great class today.");
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const exportCSV = async () => {
+    if (!session) return;
+    try {
+      const response = await api.get(`/attendance/export/${session.id}`, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `attendance_session_${session.id}.csv`);
+      document.body.appendChild(link);
+      link.target = '_blank'; // Open in new tab
+      link.click();
+      toast.success("📥 Report downloaded! Check your downloads folder.");
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleManualOverride = async (log) => {
+    if (log.status === 'present') return;
+    // This should ideally use a ConfirmModal too, but for now, keep it simple
+    if (!window.confirm(`Are you sure you want to manually mark ${log.student_name} as present?`)) return;
+
+    try {
+      await api.post(`/attendance/manual-mark`, { 
+        session_id: session.id, 
+        student_id: log.student_id,
+        status: 'present'
       });
-      setSessionId(null);
-      setActiveTab("dashboard");
-      alert("Session stopped and camera closed");
-    } catch {
-      alert("Failed to stop session");
+      toast.success(`🖊️ ${log.student_name} marked present manually.`);
+      const res = await api.get(`/attendance/session/${session.id}`);
+      setAttendance(res.data.logs);
+    } catch (err) {
+      console.error(err);
+      // Check if the error is due to session not being active or student not found
+      if (err.response?.status === 400) {
+        toast.error(err.response.data.detail || "Failed to manually mark attendance.");
+      }
     }
-  };
-
-  const finalizeAttendance = async () => {
-    try {
-      const res = await axios.post(`${API}/attendance/finalize/${sessionId}`);
-      setReport(res.data.results || []);
-      alert("Attendance finalized");
-    } catch {
-      alert("Failed to finalize attendance");
-    }
-  };
-
-  const takeManualAttendance = async () => {
-    if (!sessionId) return alert("Please start a session first");
-    try {
-      const res = await axios.post(`${API}/attendance/initialize/${sessionId}`);
-      setReport(res.data.results || []);
-      alert("Student list loaded for manual attendance");
-    } catch {
-      alert("Failed to load student list");
-    }
-  };
-
-  const manualCorrection = async (record_id, student_id, newStatus) => {
-    let percentage = 0;
-    if (newStatus === "Present") percentage = 100;
-    else if (newStatus === "Late") percentage = 50;
-
-    try {
-      await axios.patch(`${API}/attendance/record/${record_id}`, {
-        status: newStatus,
-        percentage: percentage
-      });
-      
-      setReport((prev) =>
-        prev.map((r) =>
-          r.id === record_id ? { ...r, status: newStatus, percentage: percentage } : r
-        )
-      );
-    } catch {
-      alert("Failed to update attendance");
-    }
-  };
-
-  const downloadCSV = () => {
-    if (report.length === 0) return alert("No report available");
-    let csv = "Student ID,Student Name,Status\n";
-    report.forEach((r) => { csv += `${r.student_id},${r.student_name},${r.status}\n`; });
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `attendance_session_${sessionId}.csv`;
-    a.click();
   };
 
   return (
-    <div className="teacher-dashboard">
-      <aside className="sidebar">
-        <h2>AI Attendance</h2>
-        <p>Teacher Panel</p>
+    <PageTransition>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Left Column: Live AI Feed */}
+        <div className="lg:col-span-2 space-y-8">
+          <GlassCard className="relative overflow-hidden group">
+            <div className="flex items-center justify-between mb-6 relative z-10">
+              <div className="flex items-center gap-3">
+                <div className={`w-3 h-3 rounded-full ${isLive ? 'bg-danger animate-pulse' : 'bg-text-muted'}`} />
+                <h2 className="font-orbitron font-bold text-white uppercase tracking-widest text-lg">
+                  {isLive ? 'Live AI Feed' : 'Camera Standby'}
+                </h2>
+              </div>
+              {isLive && (
+                <div className="flex items-center gap-4 text-[10px] font-mono text-cyan-DEFAULT">
+                  <span>FPS: 24.5</span>
+                  <span>BITRATE: 4.2 Mbps</span>
+                </div>
+              )}
+            </div>
 
-        <ul>
-          <li className={activeTab === 'dashboard' ? 'active' : ''} onClick={() => setActiveTab('dashboard')}>
-            Dashboard
-          </li>
-          <li className={activeTab === 'live' ? 'active' : ''} onClick={() => setActiveTab('live')}>
-            Live Attendance
-          </li>
-          <li>Timetable</li>
-          <li>Reports</li>
-          <li>Low Attendance</li>
-          <li className="logout-btn" onClick={() => { localStorage.clear(); window.location.href = "/login"; }}>
-            Logout
-          </li>
-        </ul>
-      </aside>
+            <HUDFrame active={isLive && isCameraActive}>
+              <div className="aspect-video bg-black/40 rounded-lg flex items-center justify-center relative overflow-hidden">
+                {isLive && isCameraActive ? (
+                  <img
+                    src={`${api.defaults.baseURL}/attendance/live-feed/${session?.id}`} 
+                    alt="AI Camera Feed"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="text-center space-y-4">
+                    <Camera size={48} className="text-text-muted mx-auto opacity-20" />
+                    <p className="text-text-muted font-orbitron text-xs tracking-widest uppercase opacity-50">{isLive ? "AI Feed Loading..." : "Camera Disconnected"}</p>
+                  </div>
+                )}
+                
+                {isLive && isCameraActive && (
+                  <div className="absolute top-4 left-4 flex items-center gap-2 bg-danger/20 border border-danger/40 px-2 py-1 rounded backdrop-blur-md z-20">
+                    <div className="w-1.5 h-1.5 bg-danger rounded-full animate-pulse" />
+                    <span className="text-[10px] font-orbitron font-bold text-danger uppercase tracking-tighter">AI Active</span>
+                  </div>
+                )}
+              </div>
+            </HUDFrame>
 
-      <main className="main-content">
-        <div className="topbar">
-          <h1>{activeTab === 'dashboard' ? 'Teacher Dashboard' : 'Live AI Monitoring'}</h1>
-          <div className="topbar-actions">
-             <form onSubmit={handleSearch} className="search-form">
-                <input 
-                  type="text" 
-                  placeholder="Search student..." 
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
-                <button type="submit">Search</button>
-             </form>
-          </div>
+            {!isLive && (
+              <div className="mt-8 grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-orbitron text-text-muted uppercase tracking-widest">Select Class</label>
+                  <select 
+                    value={selectedClass} 
+                    onChange={(e) => setSelectedClass(e.target.value)}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-cyan-DEFAULT transition-all"
+                  >
+                    <option value="">Choose Class...</option>
+                    {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-orbitron text-text-muted uppercase tracking-widest">Select Subject</label>
+                  <select 
+                    value={selectedSubject}
+                    onChange={(e) => setSelectedSubject(e.target.value)}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-cyan-DEFAULT transition-all"
+                  >
+                    <option value="">Choose Subject...</option>
+                    {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </div>
+              </div>
+            )}
+
+            <div className="mt-8 flex gap-4">
+              {!isLive ? (
+                <button
+                  onClick={() => setIsStartConfirmOpen(true)}
+                  className="flex-1 bg-gradient-to-r from-success to-emerald-600 text-white font-orbitron font-bold py-4 rounded-xl shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:shadow-[0_0_40px_rgba(16,185,129,0.5)] transition-all flex items-center justify-center gap-3 group"
+                >
+                  <Play size={20} className="group-hover:scale-110 transition-transform" />
+                  START SESSION
+                </button>
+              ) : (
+                <button
+                  onClick={endSession} // This should trigger a confirmation modal
+                  className="flex-1 bg-gradient-to-r from-danger to-rose-600 text-white font-orbitron font-bold py-4 rounded-xl shadow-[0_0_20px_rgba(239,68,68,0.3)] hover:shadow-[0_0_40px_rgba(239,68,68,0.5)] transition-all flex items-center justify-center gap-3 group"
+                >
+                  <Square size={20} className="group-hover:scale-110 transition-transform" />
+                  END SESSION
+                </button>
+              )}
+              <button
+                onClick={exportCSV}
+                disabled={!session && !isLive}
+                className="px-8 bg-white/5 border border-white/10 text-white font-orbitron font-bold rounded-xl hover:bg-white/10 transition-all flex items-center justify-center gap-3 group disabled:opacity-20"
+              >
+                <Download size={20} className="group-hover:-translate-y-1 transition-transform" />
+                EXPORT
+              </button>
+            </div>
+          </GlassCard>
         </div>
+        
+        {/* Right Column: Stats & List */}
+        <div className="space-y-8">
+          <GlassCard glowColor="violet">
+            <h2 className="font-orbitron font-bold text-white uppercase tracking-widest text-sm mb-8 flex items-center gap-2">
+              <Activity className="text-violet" size={18} />
+              Session Insights
+            </h2>
+            <div className="flex justify-around items-center">
+              <CircularProgress value={stats.rate} label="Present Rate" color="var(--color-violet-DEFAULT)" />
+              <div className="space-y-6">
+                <div>
+                  <p className="text-[10px] font-orbitron text-text-muted uppercase tracking-widest">Present</p>
+                  <p className="text-3xl font-orbitron font-bold text-white">
+                    <AnimatedCounter end={stats.present} key={`present-${stats.present}`} />
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-orbitron text-text-muted uppercase tracking-widest">Absent</p>
+                  <p className="text-3xl font-orbitron font-bold text-danger">
+                    <AnimatedCounter end={stats.absent} key={`absent-${stats.absent}`} />
+                  </p>
+                </div>
+              </div>
+            </div>
+          </GlassCard>
 
-        {/* --- SEARCH RESULTS MODAL --- */}
-        {isSearchOpen && (
-          <div className="modal-overlay" onClick={() => setIsSearchOpen(false)}>
-             <div className="modal-content" onClick={e => e.stopPropagation()}>
-                <div className="modal-header">
-                   <h3>Results for "{searchQuery}"</h3>
-                   <button className="close-btn" onClick={() => setIsSearchOpen(false)}>×</button>
+          <GlassCard className="flex-1 flex flex-col h-[600px]">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="font-orbitron font-bold text-white uppercase tracking-widest text-sm flex items-center gap-2">
+                <Users className="text-cyan-DEFAULT" size={18} />
+                Student Roster
+              </h2>
+              <RefreshCcw className={`text-text-muted ${isLive ? 'animate-spin' : ''}`} size={14} />
+            </div>
+            
+            <div className="flex-1 overflow-y-auto pr-2 space-y-3 custom-scrollbar">
+              {attendance.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center opacity-20 italic text-sm">
+                  <UserPlus size={48} className="mb-4" />
+                  Waiting for detections...
                 </div>
-                <div className="modal-body">
-                   {searchResults.length === 0 ? <p className="text-center p-4">No students found.</p> : (
-                     <div className="results-list">
-                        {searchResults.map(s => (
-                          <div key={s.id} className="result-item" onClick={() => { setIsSearchOpen(false); showStudent(s.id); }}>
-                             <div className="res-info">
-                                <span className="res-name">{s.name}</span>
-                                <span className="res-meta">{s.roll_no} | {s.class_name}</span>
-                             </div>
-                             <button className="btn-view">View Profile</button>
-                          </div>
-                        ))}
-                     </div>
-                   )}
-                </div>
-             </div>
-          </div>
-        )}
-
-        {/* --- STUDENT DETAIL MODAL --- */}
-        {studentDetails && (
-          <div className="modal-overlay" onClick={() => setStudentDetails(null)}>
-             <div className="modal-content detail-modal" onClick={e => e.stopPropagation()}>
-                <div className="modal-header">
-                   <h3>Student Academic Profile</h3>
-                   <button className="close-btn" onClick={() => setStudentDetails(null)}>×</button>
-                </div>
-                <div className="modal-body">
-                   <div className="profile-header">
-                      <div className="profile-avatar">{studentDetails.profile.name.charAt(0)}</div>
-                      <div className="profile-info">
-                         <h2>{studentDetails.profile.name}</h2>
-                         <p className="email">{studentDetails.profile.email}</p>
-                         <div className="profile-badges">
-                            <span>Roll: {studentDetails.profile.roll_no}</span>
-                            <span>Class: {studentDetails.profile.class}</span>
-                            <span>{studentDetails.profile.department}</span>
-                         </div>
+              ) : (
+                attendance.map((log) => (
+                  <motion.div
+                    key={log.student_id}
+                    layout
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    onClick={() => handleManualOverride(log)}
+                    className={`flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5 transition-all group ${log.status === 'absent' ? 'cursor-pointer hover:border-cyan-DEFAULT/30 hover:bg-white/10' : ''}`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-cyan-DEFAULT/10 to-violet/10 flex items-center justify-center font-bold text-cyan-DEFAULT border border-white/10 group-hover:border-cyan-DEFAULT/50 transition-colors">
+                        {log.student_name?.charAt(0)}
                       </div>
-                   </div>
-
-                   <div className="history-section mt-6">
-                      <h4>Recent Attendance History</h4>
-                      <div className="history-list">
-                         <div className="history-row header">
-                            <span>Subject</span>
-                            <span>Date & Time</span>
-                            <span>Status</span>
-                         </div>
-                         {studentDetails.attendance_history.length === 0 ? <p className="text-center p-6 text-gray-400">No records found for this student.</p> : (
-                           studentDetails.attendance_history.map((h, i) => (
-                             <div key={i} className="history-row">
-                                <span>{h.subject}</span>
-                                <span className="date">{h.date}</span>
-                                <span className={`status-tag ${h.status.toLowerCase()}`}>{h.status}</span>
-                             </div>
-                           ))
-                         )}
+                      <div>
+                        <p className="text-sm font-bold text-white">{log.student_name}</p>
+                        <p className="text-[10px] font-mono text-text-muted flex items-center gap-1">
+                          ID: {log.student_id}
+                          {log.status === 'absent' && <Edit size={10} className="opacity-0 group-hover:opacity-100 ml-1 text-cyan-DEFAULT" />}
+                        </p>
                       </div>
-                   </div>
-                </div>
-             </div>
-          </div>
-        )}
-
-        {activeTab === 'dashboard' ? (
-          <>
-            <section className="cards">
-              <div className="card">
-                <h3>Classroom</h3>
-                <select value={classroomId} onChange={(e) => setClassroomId(e.target.value)}>
-                  <option value="">-- Select --</option>
-                  {classrooms.map((room) => (
-                    <option key={room.id} value={room.id}>{room.room_name}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="card">
-                <h3>Class</h3>
-                <select value={classId} onChange={(e) => setClassId(e.target.value)}>
-                  <option value="">-- Select --</option>
-                  {classes.map((cls) => (
-                    <option key={cls.id} value={cls.id}>{cls.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="card">
-                <h3>Subject</h3>
-                <select value={subjectId} onChange={(e) => setSubjectId(e.target.value)}>
-                  <option value="">-- Select --</option>
-                  {subjects.map((sub) => (
-                    <option key={sub.id} value={sub.id}>{sub.name}</option>
-                  ))}
-                </select>
-              </div>
-            </section>
-
-            <section className="actions">
-              <button className="btn-start" onClick={startSession}>Start Session</button>
-              <button onClick={takeManualAttendance} disabled={!sessionId}>Take Manual</button>
-              <button className="btn-stop" onClick={stopSession} disabled={!sessionId}>Stop Session</button>
-              <button onClick={finalizeAttendance} disabled={!sessionId}>Finalize</button>
-              <button onClick={downloadCSV}>Export CSV</button>
-            </section>
-
-            <section className="grid">
-              <div className="panel">
-                <h2>Attendance Roster</h2>
-                {report.length === 0 ? (
-                  <p className="empty-msg">Start session and load list to see students.</p>
-                ) : (
-                  <div className="report-list">
-                    {report.map((r) => (
-                      <div className="report-row" key={r.id}>
-                        <div className="student-info">
-                           <span className="name">{r.student_name}</span>
-                           <span className="id">ID: {r.student_id}</span>
-                        </div>
-                        <div className="status-control">
-                          <span className={`badge ${r.status.toLowerCase()}`}>{r.status}</span>
-                          <select value={r.status} onChange={(e) => manualCorrection(r.id, r.student_id, e.target.value)}>
-                            <option value="Present">Present</option>
-                            <option value="Absent">Absent</option>
-                            <option value="Late">Late</option>
-                          </select>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-              <div className="panel">
-                <h2>Quick Stats</h2>
-                <div className="stats-box">
-                   <div className="stat"><span>Present:</span> <strong>{report.filter(r => r.status === "Present").length}</strong></div>
-                   <div className="stat"><span>Absent:</span> <strong>{report.filter(r => r.status === "Absent").length}</strong></div>
-                   <div className="stat"><span>Late:</span> <strong>{report.filter(r => r.status === "Late").length}</strong></div>
-                </div>
-              </div>
-            </section>
-          </>
-        ) : (
-          <div className="live-view">
-             <div className="panel live-feed-container">
-                <h2>Real-Time AI Camera Feed</h2>
-                {sessionId ? (
-                  <div className="stream-wrapper">
-                    <img src={`${API}/attendance/live-feed/${sessionId}`} alt="AI Stream" className="live-img" />
-                    <div className="stream-overlay">
-                       <div className="live-indicator"><span className="dot"></span> LIVE SCANNING</div>
-                       <div className="legend">
-                          <span className="green">Detected</span>
-                          <span className="red">Unknown</span>
-                       </div>
                     </div>
-                  </div>
-                ) : (
-                  <div className="offline-placeholder">
-                     <p>No active session found.</p>
-                     <button onClick={() => setActiveTab('dashboard')}>Go to Dashboard to Start</button>
-                  </div>
-                )}
-                <div className="ai-info mt-6">
-                   <h4>AI Processing Active</h4>
-                   <ul>
-                      <li>✓ Automatic Face Bounding Boxes</li>
-                      <li>✓ Student Identification Overlays</li>
-                      <li>✓ Real-time Confidence Scoring</li>
-                      <li>✓ Unknown Face Alert System</li>
-                   </ul>
-                </div>
-             </div>
-          </div>
-        )}
-      </main>
-    </div>
+                    <StatusBadge variant={log.status} />
+                  </motion.div>
+                ))
+              )}
+            </div>
+          </GlassCard>
+        </div>
+      </div>
+
+      {/* Start Session Confirmation Modal */}
+      <ConfirmModal
+        isOpen={isStartConfirmOpen}
+        onClose={() => setIsStartConfirmOpen(false)}
+        onConfirm={startSession}
+        title="Initiate New Session?"
+        message={`Are you sure you want to start a new attendance session for ${classes.find(c => c.id == selectedClass)?.name} - ${subjects.find(s => s.id == selectedSubject)?.name}?`}
+        confirmText="Start Session"
+      />
+
+      {/* End Session Confirmation Modal */}
+      <ConfirmModal
+        isOpen={isEndConfirmOpen}
+        onClose={() => setIsEndConfirmOpen(false)}
+        onConfirm={endSession}
+        title="Terminate Current Session?"
+        message="Ending the session will finalize attendance records. You can still manually adjust them later."
+        confirmText="End Session"
+        variant="danger"
+      />
+    </PageTransition>
   );
-}
+};
+
+export default TeacherDashboard;

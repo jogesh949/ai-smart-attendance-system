@@ -1,8 +1,7 @@
 import os
 import time
 from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
-from sqlalchemy.orm import Session
-
+from sqlalchemy.orm import Session, joinedload
 from app.database.connection import SessionLocal
 from app.routes.auth import get_current_user
 from app.services.face_service import get_face_embedding
@@ -10,6 +9,9 @@ from app.services.face_service import get_face_embedding
 from app.models.student import Student
 from app.models.face_embedding import FaceEmbedding
 from app.models.attendance_record import AttendanceRecord
+from app.models.attendance_session import AttendanceSession
+from app.models.subject import Subject
+from app.models.timetable import Timetable
 
 
 router = APIRouter(prefix="/student", tags=["Student"])
@@ -76,11 +78,6 @@ async def upload_face(
     return {"message": "Face uploaded and processed successfully", "face_detected": True}
 
 
-from app.models.attendance_session import AttendanceSession
-from app.models.subject import Subject
-
-# ... (rest of the imports)
-
 @router.get("/attendance")
 def get_student_attendance(
     db: Session = Depends(get_db),
@@ -121,10 +118,6 @@ def get_student_attendance(
         if record.status == "Present":
             subject_stats[subject_name]["attended"] += 1
             total_present += 1
-        elif record.status == "Late":
-            # Late counts as half attendance for percentage but 1 for total
-            subject_stats[subject_name]["attended"] += 0.5
-            total_present += 0.5
 
     # Format for response
     records_summary = []
@@ -143,4 +136,97 @@ def get_student_attendance(
         "overall_percentage": round(overall_percentage, 2),
         "total_sessions": total_classes,
         "total_present": total_present
+    }
+
+@router.get("/timetable")
+def get_student_timetable(db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+    if current_user.role != "student":
+        raise HTTPException(status_code=403, detail="Only student allowed")
+
+    student = db.query(Student).filter(Student.user_id == current_user.id).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student record not found")
+
+    results = db.query(Timetable).filter(Timetable.class_id == student.class_id).options(
+        joinedload(Timetable.class_name),
+        joinedload(Timetable.subject),
+        joinedload(Timetable.teacher),
+        joinedload(Timetable.classroom)
+    ).all()
+
+    return [{
+        "id": t.id,
+        "day": t.day,
+        "start_time": t.start_time.strftime("%H:%M"),
+        "end_time": t.end_time.strftime("%H:%M"),
+        "class_name": t.class_name.name if t.class_name else "N/A",
+        "subject_name": t.subject.name if t.subject else "N/A",
+        "teacher_name": db.query(User).filter(User.id == t.teacher.user_id).first().name if t.teacher else "N/A",
+        "classroom_name": t.classroom.room_name if t.classroom else "N/A"
+    } for t in results]
+
+@router.get("/dashboard")
+def get_student_dashboard_stats(
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    if current_user.role != "student":
+        raise HTTPException(status_code=403, detail="Only student allowed")
+
+    student = db.query(Student).filter(Student.user_id == current_user.id).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+
+    # Get all attendance records for this student
+    records = db.query(
+        AttendanceRecord,
+        Subject.name.label("subject_name"),
+        AttendanceSession.start_time
+    ).join(
+        AttendanceSession, AttendanceRecord.session_id == AttendanceSession.id
+    ).join(
+        Subject, AttendanceSession.subject_id == Subject.id
+    ).filter(
+        AttendanceRecord.student_id == student.id
+    ).order_by(AttendanceSession.start_time.desc()).all()
+
+    # Calculate overall stats
+    total_classes = len(records)
+    attended_count = sum(1 for r in records if r[0].status == "Present")
+    overall_percentage = round((attended_count / total_classes * 100), 2) if total_classes > 0 else 0
+
+    # Subject-wise breakdown
+    subject_map = {}
+    for r, sub_name, _ in records:
+        if sub_name not in subject_map:
+            subject_map[sub_name] = {"attended": 0, "total": 0}
+        subject_map[sub_name]["total"] += 1
+        if r.status == "Present":
+            subject_map[sub_name]["attended"] += 1
+
+    subjects_summary = []
+    for name, stats in subject_map.items():
+        subjects_summary.append({
+            "name": name,
+            "percentage": round((stats["attended"] / stats["total"] * 100), 2)
+        })
+
+    # Recent sessions
+    recent_sessions = []
+    for r, sub_name, start_time in records[:5]: # Last 5 sessions
+        recent_sessions.append({
+            "subject": sub_name,
+            "date": start_time.strftime("%Y-%m-%d %H:%M"),
+            "status": r.status.lower(),
+            "type": "Lecture" # Default type
+        })
+
+    return {
+        "stats": {
+            "overall": overall_percentage,
+            "totalClasses": total_classes,
+            "attended": attended_count
+        },
+        "subjects": subjects_summary,
+        "recent_sessions": recent_sessions
     }
