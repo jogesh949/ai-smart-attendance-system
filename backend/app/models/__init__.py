@@ -9,3 +9,6 @@ from .attendance_session import AttendanceSession
 from .camera import Camera
 from .teacher_department import teacher_department_association
 from .timetable import Timetable
+from .face_embedding import FaceEmbedding
+from .attendance_logs import AttendanceLog
+from .attendance_record import AttendanceRecord

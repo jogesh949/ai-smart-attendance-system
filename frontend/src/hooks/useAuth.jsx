@@ -26,10 +26,10 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem('token', res.data.access_token);
       localStorage.setItem('user', JSON.stringify(res.data.user));
       setUser(res.data.user);
-      return true;
+      return res.data.user; // Return user data for immediate use
     } catch (error) {
       console.error("Login failed:", error);
-      return false;
+      return null;
     }
   };
 
@@ -43,4 +43,5 @@ export const AuthProvider = ({ children }) => {
   return <AuthContext.Provider value={{ user, login, logout, loading }}>{children}</AuthContext.Provider>;
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => useContext(AuthContext);

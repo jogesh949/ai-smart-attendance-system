@@ -51,7 +51,8 @@ const Sidebar = () => {
   const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
 
-  const currentRoleItems = sidebarItems[user?.role] || [];
+  const role = user?.role?.toLowerCase();
+  const currentRoleItems = sidebarItems[role] || [];
 
   return (
     <>

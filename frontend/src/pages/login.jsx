@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { User, Lock, Bot } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import NeuralBackground from '../components/NeuralBackground';
 import GlassCard from '../components/GlassCard';
@@ -13,6 +14,7 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const [errorShake, setErrorShake] = useState(false);
   const { login } = useAuth();
+  const navigate = useNavigate();
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -20,14 +22,19 @@ const Login = () => {
     setErrorShake(false);
 
     try {
-      const success = await login({ email, password, role });
-      if (success) {
+      const loggedInUser = await login({ email, password });
+      if (loggedInUser) {
         toast.success("Welcome back! The AI is ready. 🤖");
-        // Navigation handled by ProtectedRoute in App.jsx
+        
+        // Use the actual role from the backend for navigation
+        const actualRole = loggedInUser.role?.toLowerCase();
+        if (actualRole === 'admin') navigate('/admin');
+        else if (actualRole === 'teacher') navigate('/teacher');
+        else navigate('/student');
       } else {
         setErrorShake(true);
-        toast.error("Invalid credentials or role. Please try again.");
-        setTimeout(() => setErrorShake(false), 1000); // Reset shake animation
+        toast.error("Invalid credentials. Please try again.");
+        setTimeout(() => setErrorShake(false), 1000);
       }
     } catch {
       setErrorShake(true);

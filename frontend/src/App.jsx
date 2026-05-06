@@ -34,7 +34,11 @@ const ProtectedRoute = ({ children, role }) => {
   
   if (loading) return null;
   if (!user) return <Navigate to="/login" />;
-  if (role && user.role !== role) return <Navigate to="/" />;
+  
+  const userRole = user.role?.toLowerCase();
+  const targetRole = role?.toLowerCase();
+  
+  if (targetRole && userRole !== targetRole) return <Navigate to="/" />;
   
   return children;
 };
@@ -43,6 +47,7 @@ const AppContent = () => {
   const location = useLocation();
   const { user } = useAuth();
   const isLoginPage = location.pathname === '/login';
+  const userRole = user?.role?.toLowerCase();
 
   return (
     <>
@@ -70,7 +75,13 @@ const AppContent = () => {
           <main className={`flex-1 overflow-y-auto ${!isLoginPage ? 'p-8' : ''}`}>
             <AnimatePresence mode="wait">
               <Routes location={location} key={location.pathname}>
-                <Route path="/login" element={<Login />} />
+                <Route path="/login" element={
+                  user ? (
+                    userRole === 'admin' ? <Navigate to="/admin" /> :
+                    userRole === 'teacher' ? <Navigate to="/teacher" /> :
+                    <Navigate to="/student" />
+                  ) : <Login />
+                } />
                 
                 <Route path="/admin" element={
                   <ProtectedRoute role="admin">
@@ -155,8 +166,8 @@ const AppContent = () => {
 
                 <Route path="/" element={
                   user ? (
-                    user.role === 'admin' ? <Navigate to="/admin" /> :
-                    user.role === 'teacher' ? <Navigate to="/teacher" /> :
+                    userRole === 'admin' ? <Navigate to="/admin" /> :
+                    userRole === 'teacher' ? <Navigate to="/teacher" /> :
                     <Navigate to="/student" />
                   ) : <Navigate to="/login" />
                 } />

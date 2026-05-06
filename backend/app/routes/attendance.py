@@ -11,17 +11,19 @@ import csv
 from datetime import datetime
 
 from app.database.connection import SessionLocal
-from app.models.user import User
-from app.models.face_embedding import FaceEmbedding
-from app.models.attendance_logs import AttendanceLog
-from app.models.attendance_record import AttendanceRecord
-from app.models.student import Student
-from app.models.attendance_session import AttendanceSession
-from app.models.camera import Camera
-from app.models.timetable import Timetable
-from app.models.teacher import Teacher
-from app.models.class_model import Class
-from app.models.subject import Subject
+from app.models import (
+    User, 
+    FaceEmbedding, 
+    AttendanceLog, 
+    AttendanceRecord, 
+    Student, 
+    AttendanceSession, 
+    Camera, 
+    Timetable, 
+    Teacher, 
+    Class, 
+    Subject
+)
 from app.services.face_service import get_face_embedding, compare_faces, get_faces_with_details, parse_embedding
 from app.services.email_service import send_bulk_absence_emails
 from app.routes import auth
@@ -109,8 +111,9 @@ def end_session(session_id: int, background_tasks: BackgroundTasks, db: Session 
     db.commit()
 
     try:
-        subject = db.query(Subject).filter(Subject.id == session.subject_id).first()
-        subject_name = subject.name if subject else "Unknown Subject"
+        # Use Subject model from app.models
+        db_subject = db.query(Subject).filter(Subject.id == session.subject_id).first()
+        subject_name = db_subject.name if db_subject else "Unknown Subject"
         date_str = session.start_time.strftime("%Y-%m-%d %H:%M")
         
         absent_records = db.query(AttendanceRecord, User.name, User.email).join(

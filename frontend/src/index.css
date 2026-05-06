@@ -1,8 +1,6 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
-:root {
+@theme {
   --font-orbitron: "Orbitron", sans-serif;
   --font-dm: "DM Sans", sans-serif;
   --font-mono: "JetBrains Mono", monospace;
@@ -15,16 +13,19 @@
   --color-danger: #EF4444;
   --color-text-primary: #F0F9FF;
   --color-text-muted: #64748B;
-}
-
-@keyframes glow {
-  from { box-shadow: 0 0 5px #00F5FF; }
-  to { box-shadow: 0 0 30px #00F5FF, 0 0 60px #00F5FF; }
-}
-
-@keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-10px); }
+  
+  --animate-pulse-slow: pulse 3s ease-in-out infinite;
+  --animate-glow: glow 2s ease-in-out infinite alternate;
+  --animate-float: float 6s ease-in-out infinite;
+  
+  @keyframes glow {
+    from { box-shadow: 0 0 5px #00F5FF; }
+    to { box-shadow: 0 0 30px #00F5FF, 0 0 60px #00F5FF; }
+  }
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+  }
 }
 
 body {
